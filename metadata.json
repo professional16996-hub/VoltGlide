@@ -1,0 +1,6 @@
+{
+  "name": "VoltGlide Scooty Hub",
+  "description": "Premier electric and petrol scooty showroom & dealership in Pakistan with online booking, WhatsApp ordering, and admin management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
