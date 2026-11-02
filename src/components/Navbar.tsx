@@ -3,11 +3,8 @@ import { useApp } from '../context/AppContext.tsx';
 import {
   MoreVertical,
   ShoppingCart,
-  Heart,
   Search,
   Zap,
-  Menu,
-  X,
   Home,
   Info,
   Mail,
@@ -15,12 +12,10 @@ import {
   LogOut,
   LayoutDashboard
 } from 'lucide-react';
-import { getWhatsAppUrl } from '../utils/whatsapp.ts';
 
 export const Navbar: React.FC = () => {
   const {
     cartCount,
-    wishlist,
     setIsCartOpen,
     currentRoute,
     navigate,
@@ -32,7 +27,6 @@ export const Navbar: React.FC = () => {
   } = useApp();
 
   const [isThreeDotsOpen, setIsThreeDotsOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const threeDotsRef = useRef<HTMLDivElement>(null);
@@ -189,21 +183,6 @@ export const Navbar: React.FC = () => {
               <Search className="w-5 h-5" />
             </button>
 
-            {/* Wishlist Button */}
-            <button
-              onClick={() => navigate('wishlist')}
-              className="relative p-2 text-slate-300 hover:text-red-400 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
-              aria-label="Wishlist"
-              title="View Wishlist"
-            >
-              <Heart className="w-5 h-5" />
-              {wishlist.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
-                  {wishlist.length}
-                </span>
-              )}
-            </button>
-
             {/* Shopping Cart Button */}
             <button
               onClick={() => setIsCartOpen(true)}
@@ -219,7 +198,7 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* THREE DOTS (⋮) MENU - VERY IMPORTANT PER USER PROMPT */}
+            {/* THREE DOTS (⋮) MENU */}
             <div className="relative" ref={threeDotsRef}>
               <button
                 onClick={() => setIsThreeDotsOpen(!isThreeDotsOpen)}
@@ -239,7 +218,7 @@ export const Navbar: React.FC = () => {
                 <div className="absolute right-0 mt-2 w-64 bg-[#0e1424] border border-blue-500/30 rounded-2xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2 border-b border-slate-800">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-slate-400">
-                      Quick Access
+                      Menu & Navigation
                     </p>
                   </div>
 
@@ -257,6 +236,42 @@ export const Navbar: React.FC = () => {
 
                     <button
                       onClick={() => {
+                        setSelectedCategory('All');
+                        navigate('scooties');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <Zap className="w-4 h-4 text-cyan-400" />
+                      All Scooties
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedCategory('Electric');
+                        navigate('scooties');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 ml-1 mr-1"></span>
+                      Electric EV Scooties
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedCategory('Petrol');
+                        navigate('scooties');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-400 ml-1 mr-1"></span>
+                      Petrol Scooters
+                    </button>
+
+                    <button
+                      onClick={() => {
                         navigate('about');
                         setIsThreeDotsOpen(false);
                       }}
@@ -264,6 +279,17 @@ export const Navbar: React.FC = () => {
                     >
                       <Info className="w-4 h-4 text-blue-400" />
                       About Us
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        navigate('reviews');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-slate-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-amber-400" />
+                      Customer Reviews
                     </button>
 
                     <button
@@ -319,15 +345,6 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* Mobile Hamburger Menu Toggle */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800"
-              aria-label="Toggle Menu"
-            >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
           </div>
         </div>
 
@@ -348,112 +365,6 @@ export const Navbar: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden bg-[#090e1a] border-b border-slate-800 px-4 pt-2 pb-6 space-y-3">
-          <button
-            onClick={() => {
-              navigate('home');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            Home
-          </button>
-          <button
-            onClick={() => {
-              setSelectedCategory('All');
-              navigate('scooties');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            All Scooties
-          </button>
-          <button
-            onClick={() => {
-              setSelectedCategory('Electric');
-              navigate('scooties');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-cyan-400 flex items-center gap-2"
-          >
-            <Zap className="w-4 h-4 fill-cyan-400" />
-            Electric EV Scooties
-          </button>
-          <button
-            onClick={() => {
-              setSelectedCategory('Petrol');
-              navigate('scooties');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            Petrol Scooties
-          </button>
-          <button
-            onClick={() => {
-              navigate('about');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            About Us
-          </button>
-          <button
-            onClick={() => {
-              navigate('reviews');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            Reviews & Ratings
-          </button>
-          <button
-            onClick={() => {
-              navigate('contact');
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2 text-base font-medium text-slate-200 hover:text-cyan-400"
-          >
-            Contact Us
-          </button>
-
-          <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
-            {isAdmin ? (
-              <button
-                onClick={() => {
-                  navigate('admin-dashboard');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full py-2.5 px-4 bg-blue-600/30 text-cyan-300 font-semibold rounded-xl text-center border border-cyan-500/40"
-              >
-                Go to Admin Dashboard
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  navigate('admin-login');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full py-2.5 px-4 bg-slate-800/80 text-slate-200 font-semibold rounded-xl text-center hover:bg-slate-700"
-              >
-                Admin Login
-              </button>
-            )}
-
-            <a
-              href={getWhatsAppUrl('Hello VoltGlide! I want to inquire about scooties.')}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20ba59] text-white font-bold rounded-xl text-center flex items-center justify-center gap-2 shadow-lg"
-            >
-              Order on WhatsApp (03210424424)
-            </a>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

@@ -17,7 +17,6 @@ import { ProductDetailsPage } from './pages/ProductDetailsPage.tsx';
 import { AboutPage } from './pages/AboutPage.tsx';
 import { ContactPage } from './pages/ContactPage.tsx';
 import { ReviewsPage } from './pages/ReviewsPage.tsx';
-import { WishlistPage } from './pages/WishlistPage.tsx';
 import { AdminLoginPage } from './pages/AdminLoginPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 
@@ -41,7 +40,7 @@ const MainContent: React.FC = () => {
       case 'reviews':
         return <ReviewsPage />;
       case 'wishlist':
-        return <WishlistPage />;
+        return <ScootiesPage />;
       case 'admin-login':
         return <AdminLoginPage />;
       case 'admin-dashboard':

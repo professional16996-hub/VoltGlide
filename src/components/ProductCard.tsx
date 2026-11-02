@@ -5,7 +5,6 @@ import { formatPKR, calculateDiscountPercent } from '../utils/formatters.ts';
 import { getProductOrderWhatsAppUrl } from '../utils/whatsapp.ts';
 import { WhatsAppIconSVG } from './FloatingWhatsApp.tsx';
 import {
-  Heart,
   Eye,
   ShoppingCart,
   Star,
@@ -20,10 +19,9 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { navigate, addToCart, toggleWishlist, isInWishlist } = useApp();
+  const { navigate, addToCart } = useApp();
 
   const discount = calculateDiscountPercent(product.originalPrice, product.price);
-  const isWishlisted = isInWishlist(product.id);
 
   // Status badge styling
   const getAvailabilityBadge = () => {
@@ -73,25 +71,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               {discount}% OFF
             </span>
           )}
-        </div>
-
-        {/* Right Action: Wishlist */}
-        <div className="absolute top-3 right-3 flex flex-col gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleWishlist(product.id);
-            }}
-            className={`p-2 rounded-xl backdrop-blur-md transition-all cursor-pointer ${
-              isWishlisted
-                ? 'bg-rose-500 text-white shadow-lg'
-                : 'bg-black/40 text-slate-300 hover:text-white hover:bg-black/70'
-            }`}
-            title={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
-            aria-label="Wishlist toggle"
-          >
-            <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
-          </button>
         </div>
 
         {/* Availability Badge */}

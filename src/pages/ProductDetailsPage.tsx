@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   Truck,
   Check,
-  Heart,
   ShoppingCart,
   ArrowLeft,
   Calendar,
@@ -33,8 +32,6 @@ export const ProductDetailsPage: React.FC = () => {
     selectedProductId,
     navigate,
     addToCart,
-    toggleWishlist,
-    isInWishlist,
     reviews,
     addReview
   } = useApp();
@@ -80,7 +77,6 @@ export const ProductDetailsPage: React.FC = () => {
   }, [product]);
 
   const discount = calculateDiscountPercent(product.originalPrice, product.price);
-  const isWishlisted = isInWishlist(product.id);
 
   // Calculate estimated monthly installment
   const downPaymentAmount = Math.round((product.price * downPaymentPercent) / 100);
@@ -265,29 +261,14 @@ export const ProductDetailsPage: React.FC = () => {
           {/* Actions: Add to Cart, Buy, WhatsApp Order */}
           <div className="space-y-3 pt-2">
             
-            <div className="flex gap-3">
-              {/* Add to Cart */}
-              <button
-                onClick={() => addToCart(product, quantity, selectedColor)}
-                className="flex-1 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                Add to Cart
-              </button>
-
-              {/* Wishlist button */}
-              <button
-                onClick={() => toggleWishlist(product.id)}
-                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
-                  isWishlisted
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white'
-                }`}
-                title="Wishlist"
-              >
-                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-current' : ''}`} />
-              </button>
-            </div>
+            {/* Add to Cart */}
+            <button
+              onClick={() => addToCart(product, quantity, selectedColor)}
+              className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Add to Cart
+            </button>
 
             {/* MANDATORY WHATSAPP ORDER BUTTON */}
             <a
