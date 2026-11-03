@@ -51,7 +51,7 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 font-sans">
+    <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 font-sans w-full max-w-full overflow-x-hidden relative">
       
       {/* Navbar with brand, links, cart, and top-right three dots menu for Admin Login */}
       <Navbar />

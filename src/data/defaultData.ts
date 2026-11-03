@@ -1,0 +1,407 @@
+import { Product, Banner, Review } from '../types.ts';
+
+export const DEFAULT_PRODUCTS: Product[] = [
+  {
+    id: 'scooty-01',
+    name: 'VoltGlide E-Pulse Pro',
+    category: 'Electric',
+    brand: 'VoltGlide',
+    price: 215000,
+    originalPrice: 235000,
+    image: '/images/electric_scooty_blue_1793645309587.jpg',
+    gallery: [
+      '/images/electric_scooty_blue_1793645309587.jpg',
+      '/images/emotion_ultra_scooty_1793645377028.jpg'
+    ],
+    shortDescription: 'Ultra-efficient high-torque electric scooty with removable lithium battery and digital dash.',
+    description: 'The VoltGlide E-Pulse Pro is engineered for daily urban commutes in Pakistani cities. Equipped with a high-efficiency 2000W Bosch-engineered motor, keyless start, and front regenerative hydraulic disc brakes. Zero petrol cost, near-silent ride, and low maintenance make it the top choice for smart commuters.',
+    features: [
+      '2000W Brushless DC Waterproof Motor',
+      'Portable 72V 32Ah Lithium-Ion Battery (Fast Charge)',
+      'Smart 7-inch LED Digital Cockpit with Speed & Battery Stats',
+      'Dual Hydraulic Disc Brakes with CBS (Combi-Braking)',
+      'Reverse Mode & Cruise Assist for Easy Parking',
+      'Anti-theft GPS alarm with remote key fob'
+    ],
+    specs: {
+      engineMotor: '2000W High Efficiency Brushless DC',
+      batteryFuel: '72V 32Ah Removable Lithium-Ion',
+      rangeMileage: '85 - 95 km per full charge',
+      maxSpeed: '65 km/h',
+      chargingFuelTime: '3.5 - 4 Hours (Standard 220V Home Socket)',
+      brakingSystem: 'Front & Rear Hydraulic Ventilated Disc',
+      curbWeight: '88 kg',
+      warranty: '2 Years Motor & 3 Years Battery Warranty',
+      colors: ['Electric Blue', 'Midnight Black', 'Frost White']
+    },
+    availability: 'In Stock',
+    rating: 4.9,
+    reviewCount: 42,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-02',
+    name: 'Honda Activa 6G Prime',
+    category: 'Petrol',
+    brand: 'Honda',
+    price: 345000,
+    originalPrice: null,
+    image: '/images/honda_activa_scooty_1793645327154.jpg',
+    gallery: [
+      '/images/honda_activa_scooty_1793645327154.jpg',
+      '/images/metro_city_scooty_1793645400497.jpg'
+    ],
+    shortDescription: 'Pakistan’s favorite reliable 110cc commuter scooty with full metal body and HET engine.',
+    description: 'Honda Activa 6G Prime sets the benchmark for everyday commuter scooters. Powered by Honda Eco Technology (HET) PGM-FI petrol engine for optimal fuel economy up to 55 km/liter. Features telescopic front suspension for rough road comfort and an external fuel lid for seamless refueling.',
+    features: [
+      '110cc PGM-FI HET Engine with Silent eSP Starter',
+      'Robust Full Metal Body Construction',
+      'Telescopic Front Suspension for Pothole Comfort',
+      'External Fuel Fill Lid with Multi-Function Switch',
+      'Combi-Brake System (CBS) with Equalizer',
+      'Spacious 18L Under-seat Helmet Storage'
+    ],
+    specs: {
+      engineMotor: '109.5cc Single Cylinder 4-Stroke Air-Cooled',
+      batteryFuel: '5.3 Liters Petrol Tank',
+      rangeMileage: '52 - 58 km/l',
+      maxSpeed: '85 km/h',
+      chargingFuelTime: 'Instant Petrol Refuel',
+      brakingSystem: '130mm Drum with Combi-Brake System',
+      curbWeight: '107 kg',
+      warranty: '2 Years Official Honda Engine Warranty',
+      colors: ['Pearl White', 'Matte Axis Grey', 'Royal Blue']
+    },
+    availability: 'In Stock',
+    rating: 4.8,
+    reviewCount: 38,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-03',
+    name: 'Yamaha RayZR 125 Fi Hybrid',
+    category: 'Petrol',
+    brand: 'Yamaha',
+    price: 390000,
+    originalPrice: 415000,
+    image: '/images/yamaha_sport_scooty_1793645340059.jpg',
+    gallery: [
+      '/images/yamaha_sport_scooty_1793645340059.jpg'
+    ],
+    shortDescription: 'Sporty, aggressive and lightweight 125cc hybrid-assisted scooter with aerodynamic styling.',
+    description: 'The Yamaha RayZR 125 Fi Hybrid blends aggressive motorcycle styling with the convenience of an automatic scooter. Equipped with Yamaha Smart Motor Generator (SMG) for instant electric power boost on takeoff, LED headlamps, and ultra-lightweight frame weighing only 99 kg.',
+    features: [
+      '125cc Blue Core Fuel-Injected Engine with Hybrid Power Assist',
+      'Smart Motor Generator (SMG) System for Instant Acceleration',
+      'Automatic Stop & Start System for Maximum Fuel Saving',
+      'Sporty Sharp Knuckle Guards and Aerodynamic Front Cowl',
+      'Unified Braking System (UBS) with 190mm Front Disc',
+      'Digital Instrument Gauge with Eco Indicator'
+    ],
+    specs: {
+      engineMotor: '125cc 4-Stroke Air-Cooled SOHC 2-Valve',
+      batteryFuel: '5.2 Liters Petrol Tank',
+      rangeMileage: '55 - 60 km/l',
+      maxSpeed: '92 km/h',
+      chargingFuelTime: 'Instant Petrol Refuel',
+      brakingSystem: 'Front Disc 190mm + Rear Mechanical Drum',
+      curbWeight: '99 kg',
+      warranty: '2 Years Manufacturer Warranty',
+      colors: ['Racing Blue', 'Matte Copper', 'Cyber Black']
+    },
+    availability: 'In Stock',
+    rating: 4.9,
+    reviewCount: 29,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-04',
+    name: 'Vespa Primavera Classic 150',
+    category: 'Petrol',
+    brand: 'Vespa',
+    price: 680000,
+    originalPrice: null,
+    image: '/images/vespa_classic_scooty_1793645352538.jpg',
+    gallery: [
+      '/images/vespa_classic_scooty_1793645352538.jpg'
+    ],
+    shortDescription: 'Iconic Italian luxury heritage scooty with 150cc i-get engine and premium chrome accents.',
+    description: 'Timeless Italian elegance meets contemporary engineering in the Vespa Primavera 150. Crafted with an authentic steel monocoque frame, round LED headlight, polished chrome trims, and leather-stitched saddle. Delivering a plush, smooth, head-turning cruise through town.',
+    features: [
+      'Authentic Steel Monocoque Monoplate Chassis',
+      '150cc i-get 3-Valve High Efficiency Engine',
+      'Single-Channel ABS on Front 200mm Stainless Disc',
+      'Full LED Lighting with Classic Round Headlamp',
+      'Vintage Saddle with Double Stitching',
+      'USB Mobile Port in Glovebox Compartment'
+    ],
+    specs: {
+      engineMotor: '150cc 4-Stroke 3-Valve Single Cylinder i-get',
+      batteryFuel: '7.0 Liters Petrol Tank',
+      rangeMileage: '42 - 46 km/l',
+      maxSpeed: '98 km/h',
+      chargingFuelTime: 'Instant Petrol Refuel',
+      brakingSystem: 'Front 200mm Disc with ABS, Rear 140mm Drum',
+      curbWeight: '118 kg',
+      warranty: '3 Years Vespa International Warranty',
+      colors: ['Vintage Mint Green', 'Bianco White', 'Rosso Red']
+    },
+    availability: 'Limited Stock',
+    rating: 5.0,
+    reviewCount: 19,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-05',
+    name: 'VoltGlide Phantom Sport-X',
+    category: 'Sports',
+    brand: 'VoltGlide',
+    price: 285000,
+    originalPrice: 310000,
+    image: '/images/phantom_sport_scooty_1793645364796.jpg',
+    gallery: [
+      '/images/phantom_sport_scooty_1793645364796.jpg'
+    ],
+    shortDescription: 'Aggressive electric super-scooter with 3000W dual motor punch, sport aero body and 85 km/h top speed.',
+    description: 'The Phantom Sport-X was created for riders craving pure adrenaline without petrol noise or pollution. Dual electric drive delivers rapid 0-50 km/h acceleration in 4.2 seconds. Features customizable RGB accent lighting, nitrogen rear gas shocks, and 3 selectable ride modes: Eco, Normal, and Turbo Sport.',
+    features: [
+      '3000W Peak High Torque Electric Motor',
+      'Sport Turbo Mode with Instant Torque Boost',
+      'Nitrogen Gas-Filled Adjustable Twin Rear Shocks',
+      'Aerodynamic Front Winglets & Smoke Visor',
+      'Dual Channel Disc Brakes with Anti-Skid ABS',
+      'Color TFT Display with Bluetooth Ride Telemetry'
+    ],
+    specs: {
+      engineMotor: '3000W Peak Sport High Torque Brushless',
+      batteryFuel: '72V 40Ah Heavy Duty Lithium Pack',
+      rangeMileage: '100 - 110 km (Eco Mode)',
+      maxSpeed: '85 km/h',
+      chargingFuelTime: '4 Hours (Quick Charger Included)',
+      brakingSystem: 'Twin Front Floating Discs + Rear Ventilated Disc',
+      curbWeight: '96 kg',
+      warranty: '2 Years Comprehensive Warranty',
+      colors: ['Stealth Carbon Matte', 'Electric Cyan', 'Crimson Flame']
+    },
+    availability: 'In Stock',
+    rating: 4.9,
+    reviewCount: 31,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-06',
+    name: 'E-Motion Ultra Falcon',
+    category: 'Electric',
+    brand: 'E-Motion',
+    price: 360000,
+    originalPrice: 395000,
+    image: '/images/emotion_ultra_scooty_1793645377028.jpg',
+    gallery: [
+      '/images/emotion_ultra_scooty_1793645377028.jpg',
+      '/images/electric_scooty_blue_1793645309587.jpg'
+    ],
+    shortDescription: 'Executive-class long range electric scooter with 120km range, mobile app pairing & fast charging.',
+    description: 'The E-Motion Ultra Falcon represents the pinnacle of commuter technology. Integrated with smart IoT module allowing remote lock/unlock, battery health tracking, and geo-fencing via mobile phone. Features a high-capacity automotive-grade CATL battery that charges to 80% in just 2 hours.',
+    features: [
+      'Automotive-Grade CATL Lithium-NMC Cell Battery',
+      '120 km Verified Long Range on a Single Charge',
+      'Smart App Connectivity with GPS Tracking & Anti-Tamper Alarm',
+      'Bi-LED Projector Headlights with 200m Beam Distance',
+      'Spacious Flat Footboard for Carrying Grocery & Luggage',
+      'Keyless NFC Card & Mobile Proximity Start'
+    ],
+    specs: {
+      engineMotor: '2500W High Efficiency Hub Motor',
+      batteryFuel: '72V 48Ah Premium CATL Lithium Battery',
+      rangeMileage: '120 km per charge',
+      maxSpeed: '75 km/h',
+      chargingFuelTime: '2.5 - 3 Hours Fast Charging',
+      brakingSystem: 'Dual Disc with E-ABS Regenerative Brake',
+      curbWeight: '94 kg',
+      warranty: '4 Years Battery Warranty / 2 Years Motor',
+      colors: ['Glacier Silver', 'Deep Navy Blue', 'Titanium Grey']
+    },
+    availability: 'In Stock',
+    rating: 4.9,
+    reviewCount: 24,
+    featured: false,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-07',
+    name: 'VoltGlide Sparky Mini EV',
+    category: 'Kids',
+    brand: 'VoltGlide',
+    price: 95000,
+    originalPrice: 110000,
+    image: '/images/sparky_youth_scooty_1793645388697.jpg',
+    gallery: [
+      '/images/sparky_youth_scooty_1793645388697.jpg'
+    ],
+    shortDescription: 'Safe, fun and lightweight electric scooter designed for teenagers, kids & campus mobility.',
+    description: 'The Sparky Mini EV makes personal mobility joyful and completely safe. Built with high-strength aviation aluminum, safety speed limiter (capped at 20 km/h), dual rear drum brakes, and vibrant LED safety underglow lights. Folds in 3 seconds to store in any car trunk.',
+    features: [
+      '350W Safe Eco Hub Motor (Zero Jerk Acceleration)',
+      'Parental Speed Governor (Settings: 10, 15, or 20 km/h)',
+      'Aviation Grade Lightweight Aluminum Foldable Frame',
+      'Wide Anti-Slip Silicon Deck with Neon Side Glow',
+      'Puncture-Proof 8.5-inch Solid Rubber Honeycomb Tires',
+      'Dual Mechanical Drum Brakes with Motor Cut-off'
+    ],
+    specs: {
+      engineMotor: '350W Brushless Safe Speed Motor',
+      batteryFuel: '36V 10.4Ah Lithium Safe Pack',
+      rangeMileage: '30 - 35 km per charge',
+      maxSpeed: '20 km/h (Capped for Safety)',
+      chargingFuelTime: '2 Hours (Standard Charger)',
+      brakingSystem: 'Rear Drum + Electronic E-Brake',
+      curbWeight: '16.5 kg',
+      warranty: '1 Year Full Replacement Warranty',
+      colors: ['Bright Electric Green', 'Cobalt Blue', 'Sunny Yellow']
+    },
+    availability: 'In Stock',
+    rating: 4.8,
+    reviewCount: 16,
+    featured: false,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  },
+  {
+    id: 'scooty-08',
+    name: 'Metro CityGlide 100 Eco',
+    category: 'City',
+    brand: 'Metro',
+    price: 185000,
+    originalPrice: null,
+    image: '/images/metro_city_scooty_1793645400497.jpg',
+    gallery: [
+      '/images/metro_city_scooty_1793645400497.jpg'
+    ],
+    shortDescription: 'The most affordable everyday petrol scooty with 60 km/l fuel efficiency and easy step-through deck.',
+    description: 'Designed specifically for budget-conscious families, female students, and delivery riders in Pakistan. The Metro CityGlide 100 features an automatic continuously variable transmission (CVT), ultra-low seat height for easy footing, and low-cost spare parts availability across all major cities.',
+    features: [
+      '100cc 4-Stroke High Mileage Engine',
+      'Ultra Economical 60+ km/l Real-World Fuel Average',
+      'Low Seat Height (740mm) for Confident Foot Grounding',
+      'Lightweight Frame for Easy Maneuvering in Traffic Jams',
+      'Convenient Front Grocery Hook and Helmet Under-seat Bay',
+      'Electric Self-Start with Kick Backup'
+    ],
+    specs: {
+      engineMotor: '98cc 4-Stroke Air-Cooled Single Cylinder',
+      batteryFuel: '4.8 Liters Fuel Tank',
+      rangeMileage: '60 - 65 km/l',
+      maxSpeed: '78 km/h',
+      chargingFuelTime: 'Instant Petrol Refuel',
+      brakingSystem: 'Internal Expanding Shoe Drum Brakes',
+      curbWeight: '92 kg',
+      warranty: '1 Year Warranty with Free Service Coupons',
+      colors: ['Ruby Red', 'Pearl White', 'Matte Grey']
+    },
+    availability: 'In Stock',
+    rating: 4.7,
+    reviewCount: 35,
+    featured: true,
+    createdAt: '2026-11-02T18:53:14.911Z'
+  }
+];
+
+export const DEFAULT_BANNERS: Banner[] = [
+  {
+    id: 'banner-01',
+    tag: 'MEGA EV REVOLUTION 2026',
+    title: 'Up to PKR 25,000 OFF on Electric Scooties',
+    subtitle: 'Save up to PKR 18,000 per month on petrol. Free helmet and fast home delivery across Pakistan included!',
+    ctaText: 'Shop Electric Models',
+    ctaLink: '/scooties?category=Electric',
+    bgGradient: 'from-blue-900/90 via-slate-900/95 to-slate-950',
+    active: true
+  },
+  {
+    id: 'banner-02',
+    tag: 'EASY INSTALLMENT PLANS',
+    title: 'Zero Down-Payment & 0% Markup Plans',
+    subtitle: 'Own your dream scooty with Bank Alfalah, Meezan Bank, or easy in-house monthly installments up to 24 months.',
+    ctaText: 'Calculate Installment',
+    ctaLink: '/scooties',
+    bgGradient: 'from-cyan-950 via-slate-900 to-black',
+    active: true
+  },
+  {
+    id: 'banner-03',
+    tag: 'INSTANT WHATSAPP BOOKING',
+    title: 'Order Direct via WhatsApp & Free Home Delivery',
+    subtitle: 'Direct chat with our bike specialist at 0321-0424424. Cash on delivery available in Karachi, Lahore & Islamabad.',
+    ctaText: 'Chat on WhatsApp',
+    ctaLink: 'https://wa.me/923210424424',
+    bgGradient: 'from-emerald-950 via-slate-900 to-black',
+    active: true
+  }
+];
+
+export const DEFAULT_REVIEWS: Review[] = [
+  {
+    id: 'rev-01',
+    productId: 'scooty-01',
+    productName: 'VoltGlide E-Pulse Pro',
+    customerName: 'Muhammad Hamza',
+    city: 'Lahore (Gulberg)',
+    rating: 5,
+    comment: 'Alhamdulillah best investment! I charge it every 2 nights on my normal home socket. My monthly petrol bill dropped from PKR 22,000 to just PKR 1,800 in electricity. Highly recommend VoltGlide team.',
+    verified: true,
+    status: 'approved',
+    date: '2026-03-12'
+  },
+  {
+    id: 'rev-02',
+    productId: 'scooty-02',
+    productName: 'Honda Activa 6G Prime',
+    customerName: 'Ayesha Malik',
+    city: 'Islamabad (F-10)',
+    rating: 5,
+    comment: 'Bought this for my daily commute to university. The metal body is sturdy and the combi-brakes give so much confidence in heavy traffic. Delivered in 24 hours right to my doorstep.',
+    verified: true,
+    status: 'approved',
+    date: '2026-03-24'
+  },
+  {
+    id: 'rev-03',
+    productId: 'scooty-04',
+    productName: 'Vespa Primavera Classic 150',
+    customerName: 'Daniyal Tariq',
+    city: 'Karachi (DHA Phase 6)',
+    rating: 5,
+    comment: 'Pure luxury! The vintage styling is unmatched. Everywhere I stop, people turn around to take photos. The chrome details and suspension are top-tier Italian craft.',
+    verified: true,
+    status: 'approved',
+    date: '2026-04-05'
+  },
+  {
+    id: 'rev-04',
+    productId: 'scooty-05',
+    productName: 'VoltGlide Phantom Sport-X',
+    customerName: 'Bilal Khan',
+    city: 'Rawalpindi',
+    rating: 5,
+    comment: 'The instant torque in Sport Turbo mode is insane! Reaches 60km/h in seconds. The dual front disc brakes and digital cockpit feel like a spaceship. 10/10 purchase.',
+    verified: true,
+    status: 'approved',
+    date: '2026-04-18'
+  },
+  {
+    id: 'rev-05',
+    productId: 'scooty-08',
+    productName: 'Metro CityGlide 100 Eco',
+    customerName: 'Zubair Ahmed',
+    city: 'Faisalabad',
+    rating: 5,
+    comment: 'Very practical, lightweight scooty for my sister and family errands. Fuel average is easily 60+ km/l. Order process via WhatsApp 03210424424 was super smooth!',
+    verified: true,
+    status: 'approved',
+    date: '2026-04-22'
+  }
+];

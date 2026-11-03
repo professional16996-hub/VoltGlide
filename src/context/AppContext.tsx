@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Product, CartItem, Review, Banner, Order } from '../types.ts';
+import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS } from '../data/defaultData.ts';
 
 interface ToastState {
   id: number;
@@ -54,6 +55,7 @@ interface AppContextType {
   refreshProducts: () => Promise<void>;
   refreshBanners: () => Promise<void>;
   refreshReviews: () => Promise<void>;
+  restoreDemoProducts: () => void;
 
   // Admin Auth
   adminLogin: (token: string) => void;
@@ -66,10 +68,45 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Initialize with DEFAULT_PRODUCTS so mobile devices NEVER display a blank page or 0 products
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fallback to default
+    }
+    return DEFAULT_PRODUCTS;
+  });
+
+  const [banners, setBanners] = useState<Banner[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_banners');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_BANNERS;
+  });
+
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_reviews');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_REVIEWS;
+  });
+
+  const [loading, setLoading] = useState<boolean>(false);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastState[]>([]);
   
@@ -161,48 +198,81 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Fetch initial data
+  // Fetch data with offline & demo fallback
   const refreshProducts = useCallback(async () => {
     try {
       const res = await fetch('/api/products');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setProducts(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setProducts(data.data);
+          try {
+            localStorage.setItem('voltglide_products', JSON.stringify(data.data));
+          } catch {}
+          return;
+        }
       }
     } catch (err) {
-      console.error('Failed to load products:', err);
+      console.warn('Network issue fetching products, keeping active demo products:', err);
     }
+    // Guarantee products is never empty
+    setProducts((prev) => (prev && prev.length > 0 ? prev : DEFAULT_PRODUCTS));
   }, []);
 
   const refreshBanners = useCallback(async () => {
     try {
       const res = await fetch('/api/banners');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setBanners(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setBanners(data.data);
+          try {
+            localStorage.setItem('voltglide_banners', JSON.stringify(data.data));
+          } catch {}
+          return;
+        }
       }
     } catch (err) {
-      console.error('Failed to load banners:', err);
+      console.warn('Network issue fetching banners:', err);
     }
+    setBanners((prev) => (prev && prev.length > 0 ? prev : DEFAULT_BANNERS));
   }, []);
 
   const refreshReviews = useCallback(async () => {
     try {
       const res = await fetch('/api/reviews');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setReviews(data.data);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setReviews(data.data);
+          try {
+            localStorage.setItem('voltglide_reviews', JSON.stringify(data.data));
+          } catch {}
+          return;
+        }
       }
     } catch (err) {
-      console.error('Failed to load reviews:', err);
+      console.warn('Network issue fetching reviews:', err);
     }
+    setReviews((prev) => (prev && prev.length > 0 ? prev : DEFAULT_REVIEWS));
   }, []);
+
+  // Explicit demo restore action for mobile or admin convenience
+  const restoreDemoProducts = useCallback(() => {
+    setProducts(DEFAULT_PRODUCTS);
+    setBanners(DEFAULT_BANNERS);
+    setReviews(DEFAULT_REVIEWS);
+    try {
+      localStorage.setItem('voltglide_products', JSON.stringify(DEFAULT_PRODUCTS));
+      localStorage.setItem('voltglide_banners', JSON.stringify(DEFAULT_BANNERS));
+      localStorage.setItem('voltglide_reviews', JSON.stringify(DEFAULT_REVIEWS));
+    } catch {}
+    showToast('Loaded 8 verified demo scooties!', 'success');
+  }, [showToast]);
 
   useEffect(() => {
     const loadAll = async () => {
-      setLoading(true);
       await Promise.all([refreshProducts(), refreshBanners(), refreshReviews()]);
-      setLoading(false);
     };
     loadAll();
   }, [refreshProducts, refreshBanners, refreshReviews]);
@@ -405,6 +475,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshProducts,
         refreshBanners,
         refreshReviews,
+        restoreDemoProducts,
         adminLogin,
         adminLogout,
         showToast

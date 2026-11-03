@@ -21,7 +21,7 @@ import {
 import { CategoryType } from '../types.ts';
 
 export const HomePage: React.FC = () => {
-  const { products, banners, reviews, navigate, setSelectedCategory } = useApp();
+  const { products, banners, reviews, navigate, setSelectedCategory, restoreDemoProducts } = useApp();
   const [activeTab, setActiveTab] = useState<CategoryType>('All');
 
   // Filter products by active tab
@@ -30,7 +30,7 @@ export const HomePage: React.FC = () => {
     : products.filter(p => p.category.toLowerCase() === activeTab.toLowerCase());
 
   return (
-    <div className="space-y-16">
+    <div className="space-y-16 w-full max-w-full overflow-x-hidden">
       
       {/* 1. HERO SECTION */}
       <section className="relative min-h-[580px] lg:min-h-[680px] flex items-center justify-center overflow-hidden border-b border-slate-800">
@@ -213,11 +213,27 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {filteredProducts.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 px-4 bg-slate-900/60 rounded-3xl border border-slate-800 space-y-3">
+            <p className="text-white font-bold text-base">No Scooties currently visible in "{activeTab}"</p>
+            <p className="text-slate-400 text-xs">Tap below to display all verified demo scooties.</p>
+            <button
+              onClick={() => {
+                setActiveTab('All');
+                restoreDemoProducts();
+              }}
+              className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-xs shadow-lg cursor-pointer"
+            >
+              Show All Demo Scooties
+            </button>
+          </div>
+        )}
 
         {/* View All Button */}
         <div className="text-center pt-6">

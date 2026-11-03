@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { Zap, MapPin, Phone, Mail, Clock, ShieldCheck, Heart } from 'lucide-react';
+import { Zap, MapPin, Phone, Mail, Clock, ShieldCheck } from 'lucide-react';
 import { getWhatsAppUrl, DISPLAY_PHONE } from '../utils/whatsapp.ts';
 import { WhatsAppIconSVG } from './FloatingWhatsApp.tsx';
 
@@ -8,7 +8,7 @@ export const Footer: React.FC = () => {
   const { navigate, setSelectedCategory } = useApp();
 
   return (
-    <footer className="bg-[#070b14] border-t border-slate-800 text-slate-400 text-xs mt-16">
+    <footer className="bg-[#070b14] border-t border-slate-800 text-slate-400 text-xs mt-16 w-full max-w-full overflow-x-hidden">
       
       {/* Top Value Banner */}
       <div className="border-b border-slate-800/80 bg-slate-900/30">

@@ -71,9 +71,6 @@ export const Navbar: React.FC = () => {
                 <span className="text-2xl font-extrabold tracking-tight text-white font-heading">
                   VOLT<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">GLIDE</span>
                 </span>
-                <span className="bg-blue-500/20 text-cyan-300 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-500/40 uppercase tracking-wider">
-                  EV & Gas
-                </span>
               </div>
               <p className="text-[10px] text-slate-400 tracking-wider uppercase font-semibold">
                 Scooty Hub Pakistan
@@ -215,7 +212,7 @@ export const Navbar: React.FC = () => {
 
               {/* Dropdown Menu */}
               {isThreeDotsOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-[#0e1424] border border-blue-500/30 rounded-2xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-[#0e1424] border border-blue-500/30 rounded-2xl shadow-2xl py-2 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2 border-b border-slate-800">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-slate-400">
                       Menu & Navigation
