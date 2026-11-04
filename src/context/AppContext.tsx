@@ -198,19 +198,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Safe JSON helper to prevent syntax errors
+  const safeFetchJson = async <T = any>(url: string, options?: RequestInit): Promise<{ success: boolean; data?: T; message?: string } | null> => {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      if (!text || !text.trim()) return null;
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  };
+
   // Fetch data with offline & demo fallback
   const refreshProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/products');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setProducts(data.data);
-          try {
-            localStorage.setItem('voltglide_products', JSON.stringify(data.data));
-          } catch {}
-          return;
-        }
+      const data = await safeFetchJson<Product[]>('/api/products');
+      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setProducts(data.data);
+        try {
+          localStorage.setItem('voltglide_products', JSON.stringify(data.data));
+        } catch {}
+        return;
       }
     } catch (err) {
       console.warn('Network issue fetching products, keeping active demo products:', err);
@@ -221,16 +230,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshBanners = useCallback(async () => {
     try {
-      const res = await fetch('/api/banners');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setBanners(data.data);
-          try {
-            localStorage.setItem('voltglide_banners', JSON.stringify(data.data));
-          } catch {}
-          return;
-        }
+      const data = await safeFetchJson<Banner[]>('/api/banners');
+      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setBanners(data.data);
+        try {
+          localStorage.setItem('voltglide_banners', JSON.stringify(data.data));
+        } catch {}
+        return;
       }
     } catch (err) {
       console.warn('Network issue fetching banners:', err);
@@ -240,16 +246,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const refreshReviews = useCallback(async () => {
     try {
-      const res = await fetch('/api/reviews');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setReviews(data.data);
-          try {
-            localStorage.setItem('voltglide_reviews', JSON.stringify(data.data));
-          } catch {}
-          return;
-        }
+      const data = await safeFetchJson<Review[]>('/api/reviews');
+      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+        setReviews(data.data);
+        try {
+          localStorage.setItem('voltglide_reviews', JSON.stringify(data.data));
+        } catch {}
+        return;
       }
     } catch (err) {
       console.warn('Network issue fetching reviews:', err);
@@ -348,18 +351,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     productName?: string;
   }): Promise<boolean> => {
     try {
-      const res = await fetch('/api/reviews', {
+      const data = await safeFetchJson('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reviewData)
       });
-      const data = await res.json();
-      if (data.success) {
+      if (data && data.success) {
         showToast('Thank you! Your review has been published.', 'success');
         await refreshReviews();
         return true;
       } else {
-        showToast(data.message || 'Failed to submit review.', 'error');
+        showToast(data?.message || 'Failed to submit review.', 'error');
         return false;
       }
     } catch (err) {
@@ -372,19 +374,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Order submission
   const placeOrder = async (orderData: Partial<Order>): Promise<{ success: boolean; orderId?: string; message: string }> => {
     try {
-      const res = await fetch('/api/orders', {
+      const data = await safeFetchJson<Order>('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData)
       });
-      const data = await res.json();
-      if (data.success) {
+      if (data && data.success && data.data) {
         clearCart();
         showToast(`Order #${data.data.id} placed successfully!`, 'success');
-        return { success: true, orderId: data.data.id, message: data.message };
+        return { success: true, orderId: data.data.id, message: data.message || 'Order placed!' };
       } else {
-        showToast(data.message || 'Failed to place order.', 'error');
-        return { success: false, message: data.message };
+        showToast(data?.message || 'Failed to place order.', 'error');
+        return { success: false, message: data?.message || 'Failed to place order.' };
       }
     } catch (err) {
       console.error(err);
@@ -402,17 +403,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     message: string;
   }): Promise<boolean> => {
     try {
-      const res = await fetch('/api/contact', {
+      const data = await safeFetchJson('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(contactData)
       });
-      const data = await res.json();
-      if (data.success) {
+      if (data && data.success) {
         showToast('Message sent! Our specialist will reach out shortly.', 'success');
         return true;
       }
-      showToast(data.message || 'Failed to send message.', 'error');
+      showToast(data?.message || 'Failed to send message.', 'error');
       return false;
     } catch {
       showToast('Error sending message. Try contacting directly on WhatsApp.', 'error');

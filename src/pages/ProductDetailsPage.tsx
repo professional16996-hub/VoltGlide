@@ -23,8 +23,16 @@ import {
   BatteryCharging,
   Coins,
   Send,
-  MessageSquare
+  MessageSquare,
+  Video,
+  Film,
+  Play
 } from 'lucide-react';
+
+const isMediaVideo = (url?: string) => {
+  if (!url) return false;
+  return url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov') || url.startsWith('data:video/');
+};
 
 export const ProductDetailsPage: React.FC = () => {
   const {
@@ -42,6 +50,21 @@ export const ProductDetailsPage: React.FC = () => {
   const [activeImage, setActiveImage] = useState<string>(product?.image || '');
   const [selectedColor, setSelectedColor] = useState<string>(product?.specs.colors[0] || 'Default');
   const [quantity, setQuantity] = useState<number>(1);
+
+  // Consolidated media items (photos + videos)
+  const allMedia = React.useMemo(() => {
+    if (!product) return [];
+    const list: string[] = [product.image];
+    if (product.gallery && Array.isArray(product.gallery)) {
+      product.gallery.forEach((m) => {
+        if (!list.includes(m)) list.push(m);
+      });
+    }
+    if (product.videoUrl && !list.includes(product.videoUrl)) {
+      list.push(product.videoUrl);
+    }
+    return list;
+  }, [product]);
 
   // Installment calculator state
   const [tenureMonths, setTenureMonths] = useState<number>(12);
@@ -129,14 +152,23 @@ export const ProductDetailsPage: React.FC = () => {
       {/* Main Product Showcase Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         
-        {/* Left: Gallery & Images */}
+        {/* Left: Gallery & Images / Video Player */}
         <div className="space-y-4">
           <div className="aspect-[4/3] rounded-3xl overflow-hidden bg-slate-950 border border-slate-800 relative group shadow-2xl">
-            <img
-              src={activeImage || product.image}
-              alt={product.name}
-              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-            />
+            {isMediaVideo(activeImage || product.image) ? (
+              <video
+                src={activeImage || product.image}
+                controls
+                autoPlay
+                className="w-full h-full object-contain bg-black"
+              />
+            ) : (
+              <img
+                src={activeImage || product.image}
+                alt={product.name}
+                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+              />
+            )}
             {discount && (
               <span className="absolute top-4 left-4 bg-rose-600 text-white text-xs font-extrabold px-3 py-1 rounded-lg shadow-lg">
                 SAVE {discount}% OFF
@@ -147,20 +179,31 @@ export const ProductDetailsPage: React.FC = () => {
             </span>
           </div>
 
-          {/* Thumbnails */}
-          {product.gallery && product.gallery.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto pb-2">
-              {product.gallery.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveImage(img)}
-                  className={`w-20 h-16 rounded-xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
-                    activeImage === img ? 'border-cyan-400 scale-105 shadow-md' : 'border-slate-800 opacity-60 hover:opacity-100'
-                  }`}
-                >
-                  <img src={img} alt={`${product.name} view`} className="w-full h-full object-cover" />
-                </button>
-              ))}
+          {/* Thumbnails (Photos & Videos from Gallery) */}
+          {allMedia.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+              {allMedia.map((m, idx) => {
+                const isVid = isMediaVideo(m);
+                const isActive = activeImage === m;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImage(m)}
+                    className={`relative w-20 h-16 rounded-xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
+                      isActive ? 'border-cyan-400 scale-105 shadow-md shadow-cyan-400/20' : 'border-slate-800 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    {isVid ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-cyan-400">
+                        <Play className="w-4 h-4 fill-cyan-400" />
+                        <span className="text-[9px] font-bold mt-0.5 text-white">Video</span>
+                      </div>
+                    ) : (
+                      <img src={m} alt={`${product.name} view`} className="w-full h-full object-cover" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
 

@@ -58,7 +58,7 @@ export const AboutPage: React.FC = () => {
 
         <div className="relative rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
           <img
-            src="/images/electric_scooty_blue_1793645309587.jpg"
+            src="/images/voltglide_banner.png"
             alt="VoltGlide Showroom Experience"
             className="w-full h-96 object-cover object-center"
           />

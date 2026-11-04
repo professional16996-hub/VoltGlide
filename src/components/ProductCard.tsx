@@ -73,6 +73,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </div>
 
+        {/* Video Available Badge */}
+        {(Boolean(product.videoUrl) || product.gallery?.some((m) => m.endsWith('.mp4') || m.endsWith('.webm') || m.startsWith('data:video/'))) && (
+          <div className="absolute top-3 right-3">
+            <span className="bg-black/80 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded-lg shadow backdrop-blur-sm">
+              🎬 Video
+            </span>
+          </div>
+        )}
+
         {/* Availability Badge */}
         <div className="absolute bottom-3 left-3">
           <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border backdrop-blur-md ${getAvailabilityBadge()}`}>

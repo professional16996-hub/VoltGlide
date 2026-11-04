@@ -10,6 +10,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     originalPrice: 235000,
     image: '/images/electric_scooty_blue_1793645309587.jpg',
     gallery: [
+      '/images/voltglide_banner.png',
       '/images/electric_scooty_blue_1793645309587.jpg',
       '/images/emotion_ultra_scooty_1793645377028.jpg'
     ],
@@ -164,6 +165,7 @@ export const DEFAULT_PRODUCTS: Product[] = [
     originalPrice: 310000,
     image: '/images/phantom_sport_scooty_1793645364796.jpg',
     gallery: [
+      '/images/voltglide_banner.png',
       '/images/phantom_sport_scooty_1793645364796.jpg'
     ],
     shortDescription: 'Aggressive electric super-scooter with 3000W dual motor punch, sport aero body and 85 km/h top speed.',

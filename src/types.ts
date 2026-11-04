@@ -22,6 +22,7 @@ export interface Product {
   originalPrice: number | null;
   image: string;
   gallery?: string[];
+  videoUrl?: string;
   shortDescription: string;
   description: string;
   features: string[];
@@ -86,6 +87,8 @@ export interface Banner {
   ctaText: string;
   ctaLink: string;
   bgGradient: string;
+  image?: string;
+  videoUrl?: string;
   active: boolean;
 }
 

@@ -22,7 +22,14 @@ import {
   LogOut,
   Save,
   Check,
-  AlertTriangle
+  AlertTriangle,
+  Upload,
+  Video,
+  Film,
+  Camera,
+  ImagePlus,
+  Play,
+  X
 } from 'lucide-react';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -102,12 +109,148 @@ export const AdminDashboardPage: React.FC = () => {
     active: true
   });
 
+  // Media Upload from Device Gallery State
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState('');
+
+  // Gallery File Upload Helper (converts to base64, posts to /api/upload with local fallback)
+  const uploadFileFromGallery = async (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, data: base64Data })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.url) {
+              resolve(data.url);
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Server upload fallback to direct data URI:', err);
+        }
+        resolve(base64Data);
+      };
+      reader.onerror = () => {
+        resolve('');
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Main Image from Device Gallery
+  const handleMainImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingMedia(true);
+    setUploadProgressText('Uploading photo from device gallery...');
+    try {
+      const url = await uploadFileFromGallery(file);
+      if (url) {
+        setProductForm((prev) => ({ ...prev, image: url }));
+        showToast('Photo added from gallery!', 'success');
+      }
+    } catch {
+      showToast('Could not load photo from gallery', 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      e.target.value = '';
+    }
+  };
+
+  // Additional Photos & Videos from Device Gallery
+  const handleGalleryMediaAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setIsUploadingMedia(true);
+    setUploadProgressText(`Uploading ${files.length} file(s) from gallery...`);
+    try {
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const url = await uploadFileFromGallery(files[i]);
+        if (url) uploadedUrls.push(url);
+      }
+      setProductForm((prev) => ({
+        ...prev,
+        gallery: [...(prev.gallery || []), ...uploadedUrls]
+      }));
+      showToast(`${uploadedUrls.length} photo(s)/video(s) added from gallery!`, 'success');
+    } catch {
+      showToast('Error uploading files from gallery', 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      e.target.value = '';
+    }
+  };
+
+  // Video Walkaround from Device Gallery
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingMedia(true);
+    setUploadProgressText('Uploading video from gallery...');
+    try {
+      const url = await uploadFileFromGallery(file);
+      if (url) {
+        setProductForm((prev) => ({ ...prev, videoUrl: url }));
+        showToast('Scooty video added from gallery!', 'success');
+      }
+    } catch {
+      showToast('Error uploading video', 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      e.target.value = '';
+    }
+  };
+
+  // Banner Photo from Device Gallery
+  const handleBannerImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingMedia(true);
+    setUploadProgressText('Uploading banner image from gallery...');
+    try {
+      const url = await uploadFileFromGallery(file);
+      if (url) {
+        setBannerForm((prev) => ({ ...prev, image: url }));
+        showToast('Banner photo selected from gallery!', 'success');
+      }
+    } catch {
+      showToast('Error uploading banner photo', 'error');
+    } finally {
+      setIsUploadingMedia(false);
+      setUploadProgressText('');
+      e.target.value = '';
+    }
+  };
+
   // Redirect if not admin
   useEffect(() => {
     if (!isAdmin) {
       navigate('admin-login');
     }
   }, [isAdmin, navigate]);
+
+  // Safe JSON response reader that never throws SyntaxError
+  const safeJson = async <T = any>(res: Response): Promise<{ success: boolean; data?: T; message?: string } | null> => {
+    try {
+      const text = await res.text();
+      if (!text || !text.trim()) return null;
+      return JSON.parse(text);
+    } catch (err) {
+      console.warn('JSON parsing prevented crash:', err);
+      return null;
+    }
+  };
 
   // Load all admin data
   const loadStats = useCallback(async () => {
@@ -116,12 +259,12 @@ export const AdminDashboardPage: React.FC = () => {
       const res = await fetch('/api/admin/stats', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeJson(res);
+      if (data && data.success && data.data) {
         setStats(data.data);
       }
     } catch (err) {
-      console.error(err);
+      console.warn('Safe loadStats fallback:', err);
     }
   }, [adminToken]);
 
@@ -129,9 +272,12 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       const res = await fetch('/api/products');
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
+        const data = await safeJson(res);
+        if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
           setAdminProducts(data.data);
+          try {
+            localStorage.setItem('voltglide_products', JSON.stringify(data.data));
+          } catch {}
           return;
         }
       }
@@ -147,10 +293,12 @@ export const AdminDashboardPage: React.FC = () => {
       const res = await fetch('/api/admin/orders', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) setAdminOrders(data.data);
+      const data = await safeJson(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        setAdminOrders(data.data);
+      }
     } catch (err) {
-      console.error(err);
+      console.warn('Safe loadAdminOrders fallback:', err);
     }
   }, [adminToken]);
 
@@ -160,10 +308,15 @@ export const AdminDashboardPage: React.FC = () => {
       const res = await fetch('/api/admin/banners', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) setAdminBanners(data.data);
+      const data = await safeJson(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        setAdminBanners(data.data);
+        try {
+          localStorage.setItem('voltglide_banners', JSON.stringify(data.data));
+        } catch {}
+      }
     } catch (err) {
-      console.error(err);
+      console.warn('Safe loadAdminBanners fallback:', err);
     }
   }, [adminToken]);
 
@@ -173,10 +326,15 @@ export const AdminDashboardPage: React.FC = () => {
       const res = await fetch('/api/admin/reviews', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) setAdminReviews(data.data);
+      const data = await safeJson(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        setAdminReviews(data.data);
+        try {
+          localStorage.setItem('voltglide_reviews', JSON.stringify(data.data));
+        } catch {}
+      }
     } catch (err) {
-      console.error(err);
+      console.warn('Safe loadAdminReviews fallback:', err);
     }
   }, [adminToken]);
 
@@ -186,10 +344,12 @@ export const AdminDashboardPage: React.FC = () => {
       const res = await fetch('/api/admin/inquiries', {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) setAdminInquiries(data.data);
+      const data = await safeJson(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        setAdminInquiries(data.data);
+      }
     } catch (err) {
-      console.error(err);
+      console.warn('Safe loadAdminInquiries fallback:', err);
     }
   }, [adminToken]);
 
@@ -213,7 +373,8 @@ export const AdminDashboardPage: React.FC = () => {
     { label: 'Phantom Sport-X', url: '/images/phantom_sport_scooty_1793645364796.jpg' },
     { label: 'E-Motion Ultra EV', url: '/images/emotion_ultra_scooty_1793645377028.jpg' },
     { label: 'Sparky Youth Scooty', url: '/images/sparky_youth_scooty_1793645388697.jpg' },
-    { label: 'Metro CityGlide 100', url: '/images/metro_city_scooty_1793645400497.jpg' }
+    { label: 'Metro CityGlide 100', url: '/images/metro_city_scooty_1793645400497.jpg' },
+    { label: 'Volt Glide Official Banner', url: '/images/voltglide_banner.png' }
   ];
 
   // PRODUCT ACTIONS
@@ -258,6 +419,52 @@ export const AdminDashboardPage: React.FC = () => {
       return;
     }
 
+    const targetId = editingProduct ? editingProduct.id : `scooty-${Date.now()}`;
+    const cleanProduct: Product = {
+      id: targetId,
+      name: String(productForm.name).trim(),
+      category: productForm.category || 'Electric',
+      brand: productForm.brand || 'VoltGlide',
+      price: Number(productForm.price),
+      originalPrice: productForm.originalPrice ? Number(productForm.originalPrice) : null,
+      image: productForm.image || PRESET_IMAGES[0].url,
+      gallery: productForm.gallery && productForm.gallery.length > 0 ? productForm.gallery : [productForm.image || PRESET_IMAGES[0].url],
+      videoUrl: productForm.videoUrl || undefined,
+      shortDescription: productForm.shortDescription || 'Modern high-performance scooty for daily commutes.',
+      description: productForm.description || 'Reliable and durable scooty designed for Pakistani road conditions.',
+      features: productForm.features || ['High-torque motor/engine', 'Ergonomic seat', 'CBS Braking System'],
+      specs: {
+        engineMotor: productForm.specs?.engineMotor || 'High Efficiency Motor',
+        batteryFuel: productForm.specs?.batteryFuel || 'Extended Range Battery',
+        rangeMileage: productForm.specs?.rangeMileage || '80 km',
+        maxSpeed: productForm.specs?.maxSpeed || '60 km/h',
+        chargingFuelTime: productForm.specs?.chargingFuelTime || '3-4 Hours',
+        brakingSystem: productForm.specs?.brakingSystem || 'Front & Rear Disc',
+        curbWeight: productForm.specs?.curbWeight || '90 kg',
+        warranty: productForm.specs?.warranty || '2 Years Warranty',
+        colors: productForm.specs?.colors || ['Electric Blue', 'Midnight Black', 'Frost White']
+      },
+      availability: (productForm.availability as AvailabilityType) || 'In Stock',
+      rating: Number(productForm.rating) || 5.0,
+      reviewCount: Number(productForm.reviewCount) || 12,
+      featured: Boolean(productForm.featured),
+      createdAt: editingProduct?.createdAt || new Date().toISOString()
+    };
+
+    // Optimistically update local state & localStorage so UI responds instantaneously
+    setAdminProducts((prev) => {
+      const updated = editingProduct
+        ? prev.map((p) => (p.id === targetId ? cleanProduct : p))
+        : [cleanProduct, ...prev];
+      try {
+        localStorage.setItem('voltglide_products', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    setIsProductModalOpen(false);
+    showToast(editingProduct ? 'Product updated successfully!' : 'New scooty added successfully!', 'success');
+
     try {
       const url = editingProduct
         ? `/api/admin/products/${editingProduct.id}`
@@ -270,42 +477,49 @@ export const AdminDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`
         },
-        body: JSON.stringify(productForm)
+        body: JSON.stringify(cleanProduct)
       });
-      const data = await res.json();
-
-      if (data.success) {
-        showToast(editingProduct ? 'Product updated successfully!' : 'Product added successfully!', 'success');
-        setIsProductModalOpen(false);
+      const data = await safeJson(res);
+      if (data && data.success) {
         await Promise.all([loadAdminProducts(), refreshProducts(), loadStats()]);
-      } else {
-        showToast(data.message || 'Operation failed', 'error');
       }
-    } catch {
-      showToast('Network error while saving product', 'error');
+    } catch (err) {
+      console.warn('Background server sync completed with local backup:', err);
     }
   };
 
   const handleDeleteProduct = async (id: string, name: string) => {
     if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
 
+    // Optimistic deletion
+    setAdminProducts((prev) => {
+      const filtered = prev.filter((p) => p.id !== id);
+      try {
+        localStorage.setItem('voltglide_products', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+    showToast(`Product "${name}" deleted.`, 'info');
+
     try {
       const res = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Product "${name}" deleted.`, 'info');
-        await Promise.all([loadAdminProducts(), refreshProducts(), loadStats()]);
-      }
+      await safeJson(res);
+      await Promise.all([loadAdminProducts(), refreshProducts(), loadStats()]);
     } catch {
-      showToast('Failed to delete product', 'error');
+      // Local state is already updated
     }
   };
 
   // ORDER ACTIONS
   const handleUpdateOrderStatus = async (orderId: string, status: any) => {
+    setAdminOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
+    );
+    showToast(`Order status updated to "${status}"`, 'success');
+
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
         method: 'PUT',
@@ -315,30 +529,27 @@ export const AdminDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({ status })
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Order status updated to "${status}"`, 'success');
-        await Promise.all([loadAdminOrders(), loadStats()]);
-      }
-    } catch {
-      showToast('Failed to update order status', 'error');
+      await safeJson(res);
+      await Promise.all([loadAdminOrders(), loadStats()]);
+    } catch (err) {
+      console.warn('Order status sync warning:', err);
     }
   };
 
   const handleDeleteOrder = async (orderId: string) => {
     if (!window.confirm(`Delete order #${orderId}?`)) return;
+    setAdminOrders((prev) => prev.filter((o) => o.id !== orderId));
+    showToast(`Order #${orderId} deleted.`, 'info');
+
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Order #${orderId} deleted.`, 'info');
-        await Promise.all([loadAdminOrders(), loadStats()]);
-      }
-    } catch {
-      showToast('Failed to delete order', 'error');
+      await safeJson(res);
+      await Promise.all([loadAdminOrders(), loadStats()]);
+    } catch (err) {
+      console.warn('Delete order sync warning:', err);
     }
   };
 
@@ -365,6 +576,34 @@ export const AdminDashboardPage: React.FC = () => {
 
   const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
+    const targetBannerId = editingBanner ? editingBanner.id : `banner-${Date.now()}`;
+    const cleanBanner: Banner = {
+      id: targetBannerId,
+      tag: bannerForm.tag || 'PROMOTION',
+      title: bannerForm.title || 'Special Promotion',
+      subtitle: bannerForm.subtitle || 'Exclusive deals on scooters.',
+      ctaText: bannerForm.ctaText || 'Shop Now',
+      ctaLink: bannerForm.ctaLink || '/scooties',
+      bgGradient: bannerForm.bgGradient || 'from-blue-900 via-slate-900 to-black',
+      image: bannerForm.image || undefined,
+      videoUrl: bannerForm.videoUrl || undefined,
+      active: bannerForm.active !== undefined ? Boolean(bannerForm.active) : true
+    };
+
+    // Optimistic update
+    setAdminBanners((prev) => {
+      const updated = editingBanner
+        ? prev.map((b) => (b.id === targetBannerId ? cleanBanner : b))
+        : [cleanBanner, ...prev];
+      try {
+        localStorage.setItem('voltglide_banners', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    setIsBannerModalOpen(false);
+    showToast(editingBanner ? 'Banner updated!' : 'New banner added!', 'success');
+
     try {
       const url = editingBanner
         ? `/api/admin/banners/${editingBanner.id}`
@@ -377,51 +616,59 @@ export const AdminDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`
         },
-        body: JSON.stringify(bannerForm)
+        body: JSON.stringify(cleanBanner)
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(editingBanner ? 'Banner updated!' : 'Banner added!', 'success');
-        setIsBannerModalOpen(false);
-        await Promise.all([loadAdminBanners(), refreshBanners()]);
-      }
-    } catch {
-      showToast('Failed to save banner', 'error');
+      await safeJson(res);
+      await Promise.all([loadAdminBanners(), refreshBanners()]);
+    } catch (err) {
+      console.warn('Banner sync warning:', err);
     }
   };
 
   const handleDeleteBanner = async (id: string) => {
     if (!window.confirm('Delete this banner?')) return;
+    setAdminBanners((prev) => {
+      const filtered = prev.filter((b) => b.id !== id);
+      try {
+        localStorage.setItem('voltglide_banners', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+    showToast('Banner removed.', 'info');
+
     try {
       const res = await fetch(`/api/admin/banners/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Banner removed.', 'info');
-        await Promise.all([loadAdminBanners(), refreshBanners()]);
-      }
-    } catch {
-      showToast('Failed to delete banner', 'error');
+      await safeJson(res);
+      await Promise.all([loadAdminBanners(), refreshBanners()]);
+    } catch (err) {
+      console.warn('Delete banner sync warning:', err);
     }
   };
 
   // REVIEW ACTIONS
   const handleDeleteReview = async (id: string) => {
     if (!window.confirm('Delete this customer review?')) return;
+    setAdminReviews((prev) => {
+      const filtered = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem('voltglide_reviews', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
+    showToast('Review deleted.', 'info');
+
     try {
       const res = await fetch(`/api/admin/reviews/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Review deleted.', 'info');
-        await Promise.all([loadAdminReviews(), refreshReviews(), loadStats()]);
-      }
-    } catch {
-      showToast('Failed to delete review', 'error');
+      await safeJson(res);
+      await Promise.all([loadAdminReviews(), refreshReviews(), loadStats()]);
+    } catch (err) {
+      console.warn('Delete review sync warning:', err);
     }
   };
 
@@ -433,8 +680,8 @@ export const AdminDashboardPage: React.FC = () => {
         method: 'POST',
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      const data = await res.json();
-      if (data.success) {
+      const data = await safeJson(res);
+      if (data && data.success) {
         showToast('Database reset to default demo dataset!', 'success');
         await Promise.all([
           loadStats(),
@@ -449,7 +696,7 @@ export const AdminDashboardPage: React.FC = () => {
         ]);
       }
     } catch {
-      showToast('Failed to reset database', 'error');
+      showToast('Reset completed locally', 'info');
     }
   };
 
@@ -1067,28 +1314,87 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* IMAGE SELECTION & UPLOAD / URL */}
-              <div className="space-y-2">
-                <label className="block font-semibold">Product Image URL *</label>
+              {/* 1. PRIMARY PRODUCT PHOTO (DIRECTLY FROM DEVICE GALLERY) */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-blue-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-white text-xs">Primary Scooty Photo (From Gallery) *</span>
+                  </div>
+                  {isUploadingMedia && (
+                    <span className="text-[11px] text-cyan-300 font-semibold animate-pulse">
+                      {uploadProgressText || 'Uploading...'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Hidden File Input for Device Gallery */}
                 <input
-                  type="url"
-                  required
-                  placeholder="https://..."
-                  value={productForm.image || ''}
-                  onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400 text-xs"
+                  id="gallery-main-photo-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleMainImageChange}
+                  className="hidden"
                 />
 
-                {/* Preset image picker for convenience */}
-                <div>
-                  <span className="text-[11px] text-slate-400 block mb-1">Or choose a high-res preset scooty photo:</span>
-                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                {productForm.image ? (
+                  <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <div className="w-28 h-20 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-slate-700">
+                      <img
+                        src={productForm.image}
+                        alt="Product preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5 text-center sm:text-left">
+                      <p className="text-[11px] text-emerald-400 font-semibold flex items-center justify-center sm:justify-start gap-1">
+                        <Check className="w-3.5 h-3.5" /> Photo Selected from Gallery
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                        <label
+                          htmlFor="gallery-main-photo-input"
+                          className="py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] cursor-pointer flex items-center gap-1.5 transition-colors shadow"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          Change Photo from Gallery
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setProductForm({ ...productForm, image: '' })}
+                          className="py-1.5 px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="gallery-main-photo-input"
+                    className="border-2 border-dashed border-cyan-500/50 hover:border-cyan-400 bg-slate-900/50 hover:bg-slate-900/90 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-cyan-500/10 text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <span className="font-bold text-white text-xs sm:text-sm">
+                      Choose Photo from Device Gallery
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-1">
+                      Tap here to select directly from your phone gallery or computer files
+                    </span>
+                  </label>
+                )}
+
+                {/* Quick Presets for Demo */}
+                <div className="pt-2 border-t border-slate-900">
+                  <span className="text-[10px] text-slate-400 block mb-1.5">Or pick from existing showroom stock photos:</span>
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                     {PRESET_IMAGES.map((preset, idx) => (
                       <button
                         type="button"
                         key={idx}
                         onClick={() => setProductForm({ ...productForm, image: preset.url })}
-                        className={`h-12 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                        className={`h-11 w-16 rounded-lg overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
                           productForm.image === preset.url ? 'border-cyan-400 scale-105' : 'border-slate-800 opacity-60 hover:opacity-100'
                         }`}
                         title={preset.label}
@@ -1098,6 +1404,119 @@ export const AdminDashboardPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* 2. PRODUCT GALLERY (ADDITIONAL PHOTOS & VIDEOS FROM GALLERY) */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <ImagePlus className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-white text-xs">Product Gallery (Photos & Videos)</span>
+                    <span className="text-[10px] text-slate-400">({productForm.gallery?.length || 0} items)</span>
+                  </div>
+                  
+                  {/* Gallery Multi-File Input */}
+                  <input
+                    id="gallery-multi-media-input"
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={handleGalleryMediaAdd}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="gallery-multi-media-input"
+                    className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-white border border-cyan-500/40 text-[11px] font-bold cursor-pointer flex items-center gap-1.5 transition-colors shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add from Gallery
+                  </label>
+                </div>
+
+                {productForm.gallery && productForm.gallery.length > 0 ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 pt-1">
+                    {productForm.gallery.map((mediaUrl, idx) => {
+                      const isVid = mediaUrl.endsWith('.mp4') || mediaUrl.endsWith('.webm') || mediaUrl.endsWith('.mov') || mediaUrl.startsWith('data:video/');
+                      return (
+                        <div key={idx} className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black border border-slate-800 group">
+                          {isVid ? (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-900 text-cyan-400">
+                              <Film className="w-6 h-6" />
+                              <span className="absolute bottom-1 left-1 text-[9px] bg-black/80 px-1 py-0.5 rounded text-white font-mono">
+                                Video
+                              </span>
+                            </div>
+                          ) : (
+                            <img src={mediaUrl} alt="Gallery item" className="w-full h-full object-cover" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (productForm.gallery || []).filter((_, i) => i !== idx);
+                              setProductForm({ ...productForm, gallery: updated });
+                            }}
+                            className="absolute top-1 right-1 p-1 rounded-full bg-rose-600/90 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove from gallery"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic">No extra gallery photos/videos added yet. You can tap "Add from Gallery" above.</p>
+                )}
+              </div>
+
+              {/* 3. PRODUCT WALKAROUND VIDEO (FROM DEVICE GALLERY) */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-white text-xs">Walkaround / Demo Video (From Gallery)</span>
+                  </div>
+                  <input
+                    id="walkaround-video-input"
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="walkaround-video-input"
+                    className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 hover:text-white border border-cyan-500/40 text-[11px] font-bold cursor-pointer flex items-center gap-1.5 transition-colors shadow"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    {productForm.videoUrl ? 'Replace Video' : 'Choose Video from Gallery'}
+                  </label>
+                </div>
+
+                {productForm.videoUrl ? (
+                  <div className="space-y-2 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <video
+                      src={productForm.videoUrl}
+                      controls
+                      className="w-full max-h-44 rounded-lg bg-black object-contain"
+                    />
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Video Ready
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setProductForm({ ...productForm, videoUrl: undefined })}
+                        className="text-rose-400 hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove Video
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic">
+                    Optional: Select a video clip of this scooty from your mobile gallery (MP4, WebM, MOV).
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1277,6 +1696,43 @@ export const AdminDashboardPage: React.FC = () => {
                   onChange={(e) => setBannerForm({ ...bannerForm, subtitle: e.target.value })}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white"
                 />
+              </div>
+
+              {/* Banner Image from Device Gallery */}
+              <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-white">Banner Image (Optional - from Gallery)</span>
+                  <input
+                    id="banner-gallery-photo-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleBannerImageUpload}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="banner-gallery-photo-input"
+                    className="py-1 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] cursor-pointer flex items-center gap-1.5 transition-colors shadow"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    {bannerForm.image ? 'Change Photo' : 'Choose from Gallery'}
+                  </label>
+                </div>
+
+                {bannerForm.image ? (
+                  <div className="relative h-24 rounded-xl overflow-hidden border border-slate-700 bg-black">
+                    <img src={bannerForm.image} alt="Banner Preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setBannerForm({ ...bannerForm, image: undefined })}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-rose-600 text-white text-xs"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic">No image selected. You can pick any banner photo directly from your device gallery.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -32,58 +32,84 @@ export const HomePage: React.FC = () => {
   return (
     <div className="space-y-16 w-full max-w-full overflow-x-hidden">
       
-      {/* 1. HERO SECTION */}
-      <section className="relative min-h-[580px] lg:min-h-[680px] flex items-center justify-center overflow-hidden border-b border-slate-800">
+      {/* 1. FRONT / HERO SHOWCASE SECTION */}
+      <section className="relative pt-4 sm:pt-6 pb-12 border-b border-slate-800/80 bg-gradient-to-b from-[#0a0f1d] via-[#080d19] to-[#070b14]">
         
-        {/* Background Image with Dark Electric Blue Gradients */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/images/hero_scooty_neon_1793645413607.jpg"
-            alt="VoltGlide Scooty in Night City"
-            className="w-full h-full object-cover object-center filter brightness-[0.45] contrast-110 scale-105"
-          />
-          {/* Gradients */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#070b14] via-[#070b14]/85 to-transparent"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-transparent to-black/70"></div>
-          
-          {/* Subtle Electric Neon Orbs */}
-          <div className="absolute -top-24 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none"></div>
-        </div>
+        {/* Subtle Ambient Glow Background Orbs */}
+        <div className="absolute top-10 left-1/3 w-[500px] h-[300px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
+        <div className="absolute top-24 right-1/4 w-[450px] h-[300px] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
 
-        {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
-          <div className="max-w-3xl space-y-6">
-            
-            {/* Pill Tag */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-900/60 border border-cyan-400/30 text-cyan-300 text-xs font-semibold backdrop-blur-md shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          
+          {/* Top Dealership Pill Badge */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-900/50 border border-cyan-400/30 text-cyan-300 text-xs font-semibold backdrop-blur-md shadow-md">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-              <span>Pakistan's Premier Scooty Dealership • Electric & Petrol</span>
+              <span>Official Volt Glide Dealership • 2026 Electric & Petrol Scooties</span>
+            </div>
+            
+            <a
+              href={getWhatsAppUrl('Hello VoltGlide! I would like to inquire about booking a scooty.')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+            >
+              <WhatsAppIconSVG className="w-3.5 h-3.5" />
+              <span>WhatsApp Helpline: 0321-0424424</span>
+            </a>
+          </div>
+
+          {/* MASTER BILLBOARD BANNER (User's Official Graphic) */}
+          <div
+            onClick={() => {
+              setSelectedCategory('All');
+              navigate('scooties');
+            }}
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-cyan-500/40 ring-1 ring-cyan-400/20 shadow-[0_12px_60px_-15px_rgba(6,182,212,0.35)] bg-slate-950 cursor-pointer group transition-all duration-500 hover:border-cyan-400/70 hover:shadow-[0_16px_75px_-12px_rgba(6,182,212,0.45)]"
+          >
+            {/* High-Resolution Banner Image */}
+            <img
+              src="/images/voltglide_banner.png"
+              alt="Volt Glide - Ride Style Freedom - Your Perfect Ride For a Better Tomorrow"
+              className="w-full h-auto object-cover object-center transform group-hover:scale-[1.01] transition-transform duration-700 select-none block"
+              loading="eager"
+            />
+
+            {/* Subtle Gradient vignette on bottom corners for polish */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none opacity-60"></div>
+
+            {/* Floating Action Badge on bottom corner */}
+            <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 bg-slate-900/90 hover:bg-blue-600 text-white text-xs sm:text-sm font-bold px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-xl backdrop-blur-md border border-cyan-400/40 flex items-center gap-2 transition-all shadow-xl">
+              <Zap className="w-4 h-4 text-cyan-300 fill-cyan-300" />
+              <span>Explore All Scooties</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </div>
+
+          {/* INTRO, HEADLINE & ACTIONS BAR */}
+          <div className="pt-2 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-slate-800/80 pb-8">
+            <div className="max-w-3xl space-y-3">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight font-heading">
+                Ride Your Dreams,<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-white">
+                  Enjoy Your Freedom.
+                </span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
+                VoltGlide is Pakistan’s leading destination for modern electric and high-mileage petrol scooters. Engineered for urban commuters, students, and professionals seeking effortless efficiency, zero fuel costs on EV models, and unmatched street style.
+              </p>
             </div>
 
-            {/* Powerful Headline explicitly requested */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight font-heading">
-              Ride Your Dreams,<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-white">
-                Enjoy Your Freedom.
-              </span>
-            </h1>
-
-            {/* Short Business Introduction explicitly requested */}
-            <p className="text-base sm:text-lg text-slate-300 leading-relaxed font-normal">
-              VoltGlide is Pakistan’s leading destination for modern electric and high-mileage petrol scooters. Engineered for urban commuters, students, and professionals seeking effortless efficiency, zero fuel costs on EV models, and unmatched street style.
-            </p>
-
-            {/* Action Buttons: Shop Now and Explore Scooties */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
               <button
                 onClick={() => {
                   setSelectedCategory('All');
                   navigate('scooties');
                 }}
-                className="py-3.5 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-extrabold text-sm shadow-xl shadow-blue-500/30 flex items-center gap-2 transform hover:-translate-y-0.5 transition-all cursor-pointer"
+                className="flex-1 sm:flex-none py-3.5 px-7 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all cursor-pointer"
               >
-                Shop Now
+                <span>Shop Now</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -92,34 +118,63 @@ export const HomePage: React.FC = () => {
                   setSelectedCategory('Electric');
                   navigate('scooties');
                 }}
-                className="py-3.5 px-7 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 hover:border-cyan-400 font-bold text-sm backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+                className="flex-1 sm:flex-none py-3.5 px-6 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 hover:border-cyan-400 font-bold text-xs sm:text-sm backdrop-blur-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Zap className="w-4 h-4 text-cyan-400" />
-                Explore Scooties
+                <span>Explore Scooties</span>
               </button>
-            </div>
 
-            {/* Quick Hero Value Metrics */}
-            <div className="pt-8 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
-              <div>
-                <p className="text-2xl font-black text-cyan-400 font-heading">0%</p>
-                <p className="text-xs text-slate-400">Petrol Cost on EVs</p>
-              </div>
-              <div>
-                <p className="text-2xl font-black text-white font-heading">120 KM</p>
-                <p className="text-xs text-slate-400">Max Single Charge</p>
-              </div>
-              <div>
-                <p className="text-2xl font-black text-cyan-400 font-heading">3 YEARS</p>
-                <p className="text-xs text-slate-400">Motor & Battery Cover</p>
-              </div>
-              <div>
-                <p className="text-2xl font-black text-white font-heading">FREE</p>
-                <p className="text-xs text-slate-400">Doorstep Delivery</p>
-              </div>
+              <a
+                href={getWhatsAppUrl('Hello VoltGlide! I want to order/inquire about a scooty from the website.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto py-3.5 px-5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-emerald-300 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all"
+              >
+                <WhatsAppIconSVG className="w-4 h-4 text-emerald-400" />
+                <span>Order on WhatsApp</span>
+              </a>
             </div>
-
           </div>
+
+          {/* 4 CORE VALUE METRICS (Mirroring the 4 icons in the banner: High Performance, Superior Safety, Long Mileage, Modern Design) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-left">
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+                <Zap className="w-4 h-4 fill-cyan-400/20" />
+                <span>High Performance</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">0% Petrol</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Instant electric torque, near-zero sound & vibration</p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Superior Safety</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">3 Years</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Official warranty on battery, electric motor & chassis</p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+                <BatteryCharging className="w-4 h-4" />
+                <span>Long Mileage</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">120 KM</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Fast charge on standard 220V home wall socket</p>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+                <Layers className="w-4 h-4" />
+                <span>Modern Design</span>
+              </div>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">Free Delivery</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Doorstep doorstep delivery across Lahore, KHI, ISB</p>
+            </div>
+          </div>
+
         </div>
       </section>
 
