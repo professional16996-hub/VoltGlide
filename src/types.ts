@@ -101,3 +101,37 @@ export interface ContactInquiry {
   message: string;
   createdAt: string;
 }
+
+export interface SocialLinks {
+  whatsapp?: string;
+  youtube?: string;
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
+}
+
+export interface ShowroomAddress {
+  city: string;
+  title: string;
+  address: string;
+}
+
+export interface SiteSettings {
+  phone: string;
+  whatsappNumber: string;
+  whatsappMessage: string;
+  email: string;
+  workingHours: string;
+  socialLinks: SocialLinks;
+  announcementBar: {
+    enabled: boolean;
+    text: string;
+    link?: string;
+  };
+  heroBadge: string;
+  heroTagline: string;
+  deliveryNotice: string;
+  footerText: string;
+  showrooms: ShowroomAddress[];
+}
+

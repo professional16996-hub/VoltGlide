@@ -1,11 +1,18 @@
 import React from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { Zap, MapPin, Phone, Mail, Clock, ShieldCheck } from 'lucide-react';
-import { getWhatsAppUrl, DISPLAY_PHONE } from '../utils/whatsapp.ts';
+import { Zap, MapPin, Phone, Mail, Clock, ShieldCheck, Youtube, Instagram, Facebook, Globe } from 'lucide-react';
+import { getWhatsAppUrl } from '../utils/whatsapp.ts';
 import { WhatsAppIconSVG } from './FloatingWhatsApp.tsx';
 
 export const Footer: React.FC = () => {
-  const { navigate, setSelectedCategory } = useApp();
+  const { navigate, setSelectedCategory, settings } = useApp();
+
+  const phone = settings?.phone || '0321-0424424';
+  const whatsappNum = settings?.whatsappNumber || '03210424424';
+  const email = settings?.email || 'sales@voltglide.com';
+  const workingHours = settings?.workingHours || 'Mon - Sat: 10:00 AM - 9:00 PM | Sunday: 2:00 PM - 8:00 PM';
+  const footerText = settings?.footerText || 'VoltGlide Scooty Hub is Pakistan\'s premier destination for cutting-edge electric scooties and dependable petrol scooters.';
+  const socials = settings?.socialLinks || {};
 
   return (
     <footer className="bg-[#070b14] border-t border-slate-800 text-slate-400 text-xs mt-16 w-full max-w-full overflow-x-hidden">
@@ -39,7 +46,7 @@ export const Footer: React.FC = () => {
             </div>
             <div>
               <h5 className="font-bold text-white text-sm">Instant WhatsApp Orders</h5>
-              <p className="text-[11px] text-slate-400">Direct booking at 0321-0424424</p>
+              <p className="text-[11px] text-slate-400">Direct booking at {phone}</p>
             </div>
           </div>
 
@@ -59,7 +66,7 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           
-          {/* Brand Info */}
+          {/* Brand Info & Social Media Links */}
           <div className="lg:col-span-2 space-y-4">
             <div
               onClick={() => navigate('home')}
@@ -76,18 +83,87 @@ export const Footer: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              VoltGlide Scooty Hub is Pakistan's premier destination for cutting-edge electric scooties and dependable petrol scooters. Offering premium comfort, unmatched fuel economy, and full spare-parts backing across the country.
+              {footerText}
             </p>
+
+            {/* Social Media Channels (Configured via Admin Panel) */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Follow Us & Official Channels:</p>
+              <div className="flex items-center flex-wrap gap-2.5">
+                {/* WhatsApp */}
+                <a
+                  href={socials.whatsapp || getWhatsAppUrl('Hello VoltGlide! I want to inquire about a scooty.', whatsappNum)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/30 text-emerald-400 border border-[#25D366]/40 flex items-center justify-center transition-all hover:scale-105"
+                  title="WhatsApp Channel"
+                >
+                  <WhatsAppIconSVG className="w-4 h-4" />
+                </a>
+
+                {/* YouTube */}
+                {socials.youtube && (
+                  <a
+                    href={socials.youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-xl bg-rose-600/15 hover:bg-rose-600/30 text-rose-400 border border-rose-500/40 flex items-center justify-center transition-all hover:scale-105"
+                    title="YouTube Channel"
+                  >
+                    <Youtube className="w-4 h-4" />
+                  </a>
+                )}
+
+                {/* Instagram */}
+                {socials.instagram && (
+                  <a
+                    href={socials.instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-xl bg-pink-600/15 hover:bg-pink-600/30 text-pink-400 border border-pink-500/40 flex items-center justify-center transition-all hover:scale-105"
+                    title="Instagram Profile"
+                  >
+                    <Instagram className="w-4 h-4" />
+                  </a>
+                )}
+
+                {/* Facebook */}
+                {socials.facebook && (
+                  <a
+                    href={socials.facebook}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-xl bg-blue-600/15 hover:bg-blue-600/30 text-blue-400 border border-blue-500/40 flex items-center justify-center transition-all hover:scale-105"
+                    title="Facebook Page"
+                  >
+                    <Facebook className="w-4 h-4" />
+                  </a>
+                )}
+
+                {/* TikTok */}
+                {socials.tiktok && (
+                  <a
+                    href={socials.tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-xl bg-cyan-600/15 hover:bg-cyan-600/30 text-cyan-400 border border-cyan-500/40 flex items-center justify-center transition-all hover:scale-105"
+                    title="TikTok Account"
+                  >
+                    <Globe className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
+            </div>
 
             <div className="pt-2 flex items-center gap-3">
               <a
-                href={getWhatsAppUrl('Hello VoltGlide! I would like to chat with a sales representative.')}
+                href={getWhatsAppUrl('Hello VoltGlide! I would like to chat with a sales representative.', whatsappNum)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#25D366]/20 border border-[#25D366]/40 text-emerald-300 hover:bg-[#25D366]/30 text-xs font-bold transition-colors"
               >
                 <WhatsAppIconSVG className="w-4 h-4 text-emerald-400" />
-                <span>0321-0424424 (WhatsApp)</span>
+                <span>{phone} (WhatsApp Helpline)</span>
               </a>
             </div>
           </div>
@@ -157,27 +233,41 @@ export const Footer: React.FC = () => {
           <div className="space-y-3">
             <h5 className="text-white font-bold text-sm font-heading tracking-wide">Showrooms</h5>
             <ul className="space-y-2.5 text-[11px]">
-              <li className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white block">Lahore Showroom:</strong>
-                  Main Boulevard, Gulberg III, Near Siddiq Trade Center
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white block">Karachi Center:</strong>
-                  Plot 14-C, Shahrah-e-Faisal / DHA Phase 6
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  <strong className="text-white block">Islamabad Branch:</strong>
-                  Block 8-C, Jinnah Avenue, Blue Area
-                </span>
-              </li>
+              {settings?.showrooms && settings.showrooms.length > 0 ? (
+                settings.showrooms.map((sh, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white block">{sh.title || sh.city}:</strong>
+                      {sh.address}
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <>
+                  <li className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white block">Lahore Showroom:</strong>
+                      Main Boulevard, Gulberg III, Near Siddiq Trade Center
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white block">Karachi Center:</strong>
+                      Plot 14-C, Shahrah-e-Faisal / DHA Phase 6
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-white block">Islamabad Branch:</strong>
+                      Block 8-C, Jinnah Avenue, Blue Area
+                    </span>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
 
@@ -187,17 +277,16 @@ export const Footer: React.FC = () => {
             <div className="space-y-2 text-[11px]">
               <div className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="font-mono text-white">{DISPLAY_PHONE}</span>
+                <span className="font-mono text-white">{phone}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-slate-300">sales@voltglide.com</span>
+                <span className="text-slate-300">{email}</span>
               </div>
               <div className="flex items-start gap-2 pt-1">
                 <Clock className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0 mt-0.5" />
-                <span>
-                  Mon - Sat: 10:00 AM - 9:00 PM<br />
-                  Sunday: 2:00 PM - 8:00 PM
+                <span className="whitespace-pre-line leading-relaxed">
+                  {workingHours}
                 </span>
               </div>
               <div className="pt-2">

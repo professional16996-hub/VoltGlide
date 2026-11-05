@@ -23,7 +23,8 @@ export const Navbar: React.FC = () => {
     adminLogout,
     searchQuery,
     setSearchQuery,
-    setSelectedCategory
+    setSelectedCategory,
+    settings
   } = useApp();
 
   const [isThreeDotsOpen, setIsThreeDotsOpen] = useState(false);
@@ -52,6 +53,29 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-[#0a0f1d]/95 backdrop-blur-md border-b border-slate-800/80 shadow-2xl">
+      {/* Dynamic Announcement Bar configured from Admin Panel */}
+      {settings?.announcementBar?.enabled && settings.announcementBar.text && (
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-cyan-950 border-b border-cyan-500/30 text-white text-[11px] sm:text-xs py-1.5 px-4 text-center flex items-center justify-center gap-2 font-medium tracking-wide">
+          <span>{settings.announcementBar.text}</span>
+          {settings.announcementBar.link && (
+            <button
+              onClick={() => {
+                const link = settings.announcementBar?.link || '';
+                if (link.startsWith('http')) {
+                  window.open(link, '_blank');
+                } else {
+                  const path = link.replace(/^\//, '');
+                  navigate(path || 'scooties');
+                }
+              }}
+              className="underline text-cyan-300 hover:text-white font-bold ml-1 transition-colors cursor-pointer"
+            >
+              View Offer →
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20 gap-4">

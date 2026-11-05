@@ -407,3 +407,33 @@ export const DEFAULT_REVIEWS: Review[] = [
     date: '2026-04-22'
   }
 ];
+
+export const DEFAULT_SETTINGS: import('../types.ts').SiteSettings = {
+  phone: '0321-0424424',
+  whatsappNumber: '03210424424',
+  whatsappMessage: 'Hello VoltGlide Motors! I am interested in your scooties.',
+  email: 'sales@voltglide.com',
+  workingHours: 'Mon - Sat: 10:00 AM - 9:00 PM | Sunday: 2:00 PM - 8:00 PM',
+  socialLinks: {
+    whatsapp: 'https://wa.me/923210424424',
+    youtube: 'https://youtube.com/@voltglide',
+    instagram: 'https://instagram.com/voltglidescooties',
+    facebook: 'https://facebook.com/voltglidepakistan',
+    tiktok: 'https://tiktok.com/@voltglide'
+  },
+  announcementBar: {
+    enabled: true,
+    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan',
+    link: '/scooties'
+  },
+  heroBadge: 'PAKISTAN’S #1 OFFICIAL SCOOTY SHOWROOM',
+  heroTagline: 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.',
+  deliveryNotice: 'Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
+  footerText: 'VoltGlide Scooty Hub is Pakistan’s premier destination for cutting-edge electric scooties and dependable petrol scooters.',
+  showrooms: [
+    { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },
+    { city: 'Karachi', title: 'Karachi Center', address: 'Plot 14-C, Shahrah-e-Faisal / DHA Phase 6' },
+    { city: 'Islamabad', title: 'Islamabad Branch', address: 'Block 8-C, Jinnah Avenue, Blue Area' }
+  ]
+};
+

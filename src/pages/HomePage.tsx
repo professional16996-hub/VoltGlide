@@ -21,8 +21,13 @@ import {
 import { CategoryType } from '../types.ts';
 
 export const HomePage: React.FC = () => {
-  const { products, banners, reviews, navigate, setSelectedCategory, restoreDemoProducts } = useApp();
+  const { products, banners, reviews, navigate, setSelectedCategory, restoreDemoProducts, settings } = useApp();
   const [activeTab, setActiveTab] = useState<CategoryType>('All');
+
+  const phone = settings?.phone || '0321-0424424';
+  const whatsappNum = settings?.whatsappNumber || '03210424424';
+  const heroBadge = settings?.heroBadge || 'Official Volt Glide Dealership • 2026 Electric & Petrol Scooties';
+  const heroTagline = settings?.heroTagline || 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.';
 
   // Filter products by active tab
   const filteredProducts = activeTab === 'All'
@@ -45,17 +50,17 @@ export const HomePage: React.FC = () => {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-900/50 border border-cyan-400/30 text-cyan-300 text-xs font-semibold backdrop-blur-md shadow-md">
               <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-              <span>Official Volt Glide Dealership • 2026 Electric & Petrol Scooties</span>
+              <span>{heroBadge}</span>
             </div>
             
             <a
-              href={getWhatsAppUrl('Hello VoltGlide! I would like to inquire about booking a scooty.')}
+              href={getWhatsAppUrl('Hello VoltGlide! I would like to inquire about booking a scooty.', whatsappNum)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
             >
               <WhatsAppIconSVG className="w-3.5 h-3.5" />
-              <span>WhatsApp Helpline: 0321-0424424</span>
+              <span>WhatsApp Helpline: {phone}</span>
             </a>
           </div>
 
@@ -186,6 +191,11 @@ export const HomePage: React.FC = () => {
               key={banner.id}
               className={`p-6 rounded-2xl bg-gradient-to-br ${banner.bgGradient} border border-slate-800 hover:border-cyan-500/50 shadow-xl transition-all duration-300 flex flex-col justify-between group`}
             >
+              {banner.image && (
+                <div className="relative w-full h-32 rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/40">
+                  <img src={banner.image} alt={banner.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                </div>
+              )}
               <div className="space-y-3">
                 <span className="inline-block px-2.5 py-1 rounded-md bg-blue-500/20 text-cyan-300 font-extrabold text-[10px] tracking-wider uppercase border border-cyan-500/30">
                   {banner.tag}

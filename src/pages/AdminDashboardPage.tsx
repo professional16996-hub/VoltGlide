@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { Product, Order, Banner, Review, ContactInquiry, AvailabilityType } from '../types.ts';
+import { Product, Order, Banner, Review, ContactInquiry, AvailabilityType, SiteSettings } from '../types.ts';
 import { formatPKR } from '../utils/formatters.ts';
 import {
   LayoutDashboard,
@@ -29,8 +29,20 @@ import {
   Camera,
   ImagePlus,
   Play,
-  X
+  X,
+  Youtube,
+  Instagram,
+  Facebook,
+  Phone,
+  Mail,
+  Globe,
+  Link as LinkIcon,
+  Sliders,
+  MapPin,
+  Share2,
+  Sparkles
 } from 'lucide-react';
+import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 
 export const AdminDashboardPage: React.FC = () => {
   const {
@@ -44,10 +56,23 @@ export const AdminDashboardPage: React.FC = () => {
     reviews,
     refreshProducts,
     refreshBanners,
-    refreshReviews
+    refreshReviews,
+    settings,
+    updateSettings,
+    refreshSettings
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'banners' | 'reviews' | 'inquiries' | 'settings'>('overview');
+
+  // Dynamic Site Settings Form State
+  const [settingsForm, setSettingsForm] = useState<SiteSettings>(settings);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setSettingsForm(settings);
+    }
+  }, [settings]);
 
   // Stats
   const [stats, setStats] = useState({
@@ -700,6 +725,22 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // SAVE SITE SETTINGS (Numbers, Links, Texts, Socials)
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      const ok = await updateSettings(settingsForm);
+      if (ok) {
+        showToast('Website numbers, links, and text updated successfully!', 'success');
+      }
+    } catch {
+      showToast('Failed to save settings', 'error');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
   const filteredAdminProducts = adminProducts.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.brand.toLowerCase().includes(productSearch.toLowerCase()) ||
@@ -756,7 +797,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
           { id: 'banners', label: `Banners (${adminBanners.length})`, icon: ImageIcon },
           { id: 'reviews', label: `Reviews (${adminReviews.length})`, icon: MessageSquare },
-          { id: 'settings', label: 'Database & Reset', icon: Settings }
+          { id: 'settings', label: 'Site Settings & Links', icon: Sliders }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1198,41 +1239,567 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 6: SETTINGS & DATABASE RESET */}
+      {/* TAB 6: SETTINGS, NUMBERS & SOCIAL LINKS */}
       {activeTab === 'settings' && (
-        <div className="max-w-2xl bg-[#0f172a] rounded-3xl p-8 border border-slate-800 space-y-6 text-xs">
-          <div>
-            <h3 className="font-bold text-white text-base font-heading">
-              Persistent Database & Showroom Settings
-            </h3>
-            <p className="text-slate-400 mt-1">
-              Data is saved in <code className="text-cyan-400 bg-slate-900 px-1 py-0.5 rounded">data/store.json</code> and stays saved across browser refreshes and server reboots.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
-            <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
-              <AlertTriangle className="w-4 h-4" />
-              Reset Demo Dataset
+        <form onSubmit={handleSaveSettings} className="space-y-8 max-w-4xl text-xs">
+          
+          {/* Header & Save Action Bar */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+            <div>
+              <h3 className="font-bold text-white text-lg font-heading flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-cyan-400" />
+                Website Settings, Numbers & Social Links
+              </h3>
+              <p className="text-slate-400 mt-1">
+                Yahan se aap helpline number, WhatsApp number, YouTube, Instagram, Facebook, TikTok links aur website text change kar sakte hain.
+              </p>
             </div>
-            <p>
-              If products or reviews have been modified or deleted, you can restore all 8+ official demo scooty products, default promotional banners, and verified reviews with 1 click.
-            </p>
             <button
-              onClick={handleResetDefaults}
-              className="mt-2 py-2.5 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs shadow cursor-pointer transition-all"
+              type="submit"
+              disabled={isSavingSettings}
+              className="w-full sm:w-auto py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
             >
-              Reset to Factory Demo Products
+              <Save className="w-4 h-4" />
+              <span>{isSavingSettings ? 'Saving Settings...' : 'Save All Changes'}</span>
             </button>
           </div>
 
-          <div className="space-y-3 pt-4 border-t border-slate-800 text-slate-300">
-            <h4 className="font-bold text-white">System Environment:</h4>
-            <p>• Admin Email: <span className="font-mono text-cyan-400">admin@voltglide.com</span></p>
-            <p>• WhatsApp Integration Target: <span className="font-mono text-emerald-400">+92 321 0424424 (03210424424)</span></p>
-            <p>• Currency Standard: <span className="font-mono text-white">PKR (Pakistani Rupee)</span></p>
+          {/* CARD 1: CONTACT & HELPLINE NUMBERS */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-xl">
+            <div className="border-b border-slate-800 pb-3 flex items-center gap-2">
+              <Phone className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  1. Contact Numbers & WhatsApp Configuration
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Ye number website k Header, Footer aur direct WhatsApp buttons par show hoga.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Helpline Phone Number (Display) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 0321-0424424"
+                    value={settingsForm.phone || ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white font-mono focus:outline-none focus:border-cyan-400"
+                  />
+                  <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Website par customers ko call k liye ye number show hoga.</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  WhatsApp Helpline Number *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 03210424424 ya 923210424424"
+                    value={settingsForm.whatsappNumber || ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white font-mono focus:outline-none focus:border-emerald-400"
+                  />
+                  <WhatsAppIconSVG className="w-4 h-4 text-emerald-400 absolute left-3 top-3 pointer-events-none" />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Customer jab WhatsApp button dabayega to is number par chat khulay gi.</p>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Official Support Email
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="e.g. sales@voltglide.com"
+                    value={settingsForm.email || ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Showroom Working Hours
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Mon - Sat: 10:00 AM - 9:00 PM | Sunday: 2:00 PM - 8:00 PM"
+                    value={settingsForm.workingHours || ''}
+                    onChange={(e) => setSettingsForm({ ...settingsForm, workingHours: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                  <Clock className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1">
+                Default WhatsApp Order Inquiries Greeting
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Hello VoltGlide Motors! I am interested in your scooties."
+                value={settingsForm.whatsappMessage || ''}
+                onChange={(e) => setSettingsForm({ ...settingsForm, whatsappMessage: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">Direct click par customer k WhatsApp chat box ma ye text pre-fill hoga.</p>
+            </div>
           </div>
-        </div>
+
+          {/* CARD 2: SOCIAL MEDIA & CHANNELS LINKS */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-xl">
+            <div className="border-b border-slate-800 pb-3 flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  2. Social Media & Official Channels Links
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Apne YouTube, WhatsApp, Instagram, Facebook aur TikTok channels k link yahan add karein.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* YouTube Channel Link */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-rose-600/20 text-rose-400 flex items-center justify-center">
+                      <Youtube className="w-4 h-4" />
+                    </div>
+                    YouTube Channel Link
+                  </label>
+                  {settingsForm.socialLinks?.youtube && (
+                    <a
+                      href={settingsForm.socialLinks.youtube}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Link
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://youtube.com/@voltglide"
+                  value={settingsForm.socialLinks?.youtube || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      socialLinks: { ...settingsForm.socialLinks, youtube: e.target.value }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              {/* WhatsApp Direct Link */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-[#25D366]/20 text-emerald-400 flex items-center justify-center">
+                      <WhatsAppIconSVG className="w-4 h-4" />
+                    </div>
+                    WhatsApp Direct Link or Group
+                  </label>
+                  {settingsForm.socialLinks?.whatsapp && (
+                    <a
+                      href={settingsForm.socialLinks.whatsapp}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Chat
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://wa.me/923210424424"
+                  value={settingsForm.socialLinks?.whatsapp || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      socialLinks: { ...settingsForm.socialLinks, whatsapp: e.target.value }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Instagram Profile Link */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-pink-600/20 text-pink-400 flex items-center justify-center">
+                      <Instagram className="w-4 h-4" />
+                    </div>
+                    Instagram Profile Link
+                  </label>
+                  {settingsForm.socialLinks?.instagram && (
+                    <a
+                      href={settingsForm.socialLinks.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-pink-400 hover:text-pink-300 flex items-center gap-1 font-semibold"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Profile
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://instagram.com/voltglidescooties"
+                  value={settingsForm.socialLinks?.instagram || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      socialLinks: { ...settingsForm.socialLinks, instagram: e.target.value }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              {/* Facebook Page Link */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                      <Facebook className="w-4 h-4" />
+                    </div>
+                    Facebook Page Link
+                  </label>
+                  {settingsForm.socialLinks?.facebook && (
+                    <a
+                      href={settingsForm.socialLinks.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-semibold"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Page
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://facebook.com/voltglidepakistan"
+                  value={settingsForm.socialLinks?.facebook || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      socialLinks: { ...settingsForm.socialLinks, facebook: e.target.value }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* TikTok Profile Link */}
+              <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-cyan-600/20 text-cyan-400 flex items-center justify-center">
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    TikTok Channel / Other Link
+                  </label>
+                  {settingsForm.socialLinks?.tiktok && (
+                    <a
+                      href={settingsForm.socialLinks.tiktok}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Link
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://tiktok.com/@voltglide"
+                  value={settingsForm.socialLinks?.tiktok || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      socialLinks: { ...settingsForm.socialLinks, tiktok: e.target.value }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CARD 3: WEBSITE TEXTS & ANNOUNCEMENT BAR */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-xl">
+            <div className="border-b border-slate-800 pb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  3. Website Texts & Announcement Bar
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Website k front par jo notice, banner text ya slogan display hota hai, us ko yahan se edit karein.
+                </p>
+              </div>
+            </div>
+
+            {/* Top Announcement Bar Configuration */}
+            <div className="bg-slate-950/70 p-4 rounded-2xl border border-cyan-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-white text-xs flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                  Top Announcement Strip (Above Navbar)
+                </span>
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(settingsForm.announcementBar?.enabled)}
+                    onChange={(e) =>
+                      setSettingsForm({
+                        ...settingsForm,
+                        announcementBar: {
+                          ...settingsForm.announcementBar,
+                          enabled: e.target.checked
+                        }
+                      })
+                    }
+                    className="w-4 h-4 rounded text-cyan-500 focus:ring-cyan-400 bg-slate-900 border-slate-700"
+                  />
+                  <span>Show Announcement Bar</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                  Announcement Text
+                </label>
+                <input
+                  type="text"
+                  placeholder="⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan"
+                  value={settingsForm.announcementBar?.text || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      announcementBar: {
+                        ...settingsForm.announcementBar,
+                        text: e.target.value
+                      }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                  Announcement Button Destination Link
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. /scooties ya https://wa.me/923210424424"
+                  value={settingsForm.announcementBar?.link || ''}
+                  onChange={(e) =>
+                    setSettingsForm({
+                      ...settingsForm,
+                      announcementBar: {
+                        ...settingsForm.announcementBar,
+                        link: e.target.value
+                      }
+                    })
+                  }
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Hero Top Badge Text
+                </label>
+                <input
+                  type="text"
+                  placeholder="Official Volt Glide Dealership • 2026 Electric & Petrol Scooties"
+                  value={settingsForm.heroBadge || ''}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, heroBadge: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Hero Tagline / Subtitle
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering."
+                  value={settingsForm.heroTagline || ''}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, heroTagline: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Delivery & Shipping Notice Text
+                </label>
+                <input
+                  type="text"
+                  placeholder="Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide."
+                  value={settingsForm.deliveryNotice || ''}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, deliveryNotice: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Footer Brand Description Text
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="VoltGlide Scooty Hub is Pakistan's premier destination for cutting-edge electric scooties and dependable petrol scooters."
+                  value={settingsForm.footerText || ''}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, footerText: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CARD 4: SHOWROOM LOCATIONS & ADDRESSES */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-xl">
+            <div className="border-b border-slate-800 pb-3 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  4. Physical Showrooms & Branch Addresses
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Customer trust k liye showrooms k addresses update karein.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {(settingsForm.showrooms || []).map((sh, idx) => (
+                <div key={idx} className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Branch Title ({sh.city})
+                      </label>
+                      <input
+                        type="text"
+                        value={sh.title || ''}
+                        onChange={(e) => {
+                          const updated = [...(settingsForm.showrooms || [])];
+                          updated[idx] = { ...updated[idx], title: e.target.value };
+                          setSettingsForm({ ...settingsForm, showrooms: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        value={sh.city || ''}
+                        onChange={(e) => {
+                          const updated = [...(settingsForm.showrooms || [])];
+                          updated[idx] = { ...updated[idx], city: e.target.value };
+                          setSettingsForm({ ...settingsForm, showrooms: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                      Full Address
+                    </label>
+                    <input
+                      type="text"
+                      value={sh.address || ''}
+                      onChange={(e) => {
+                        const updated = [...(settingsForm.showrooms || [])];
+                        updated[idx] = { ...updated[idx], address: e.target.value };
+                        setSettingsForm({ ...settingsForm, showrooms: updated });
+                      }}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* SAVE BUTTON AT BOTTOM */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 rounded-3xl bg-[#0f172a] border border-blue-500/30">
+            <div>
+              <p className="font-bold text-white text-sm">Save All Changes?</p>
+              <p className="text-slate-400 text-[11px]">
+                Button dabane par numbers aur links poori website par live update ho jayein ge.
+              </p>
+            </div>
+            <button
+              type="submit"
+              disabled={isSavingSettings}
+              className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-5 h-5" />
+              <span>{isSavingSettings ? 'Saving...' : 'Save Settings & Links'}</span>
+            </button>
+          </div>
+
+          {/* FACTORY DEMO RESET BOX */}
+          <div className="p-6 rounded-3xl bg-[#0f172a] border border-slate-800 space-y-4">
+            <div>
+              <h4 className="font-bold text-amber-400 text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Factory Demo Reset Option
+              </h4>
+              <p className="text-slate-400 text-[11px] mt-1">
+                Agar aap kisi waqt original verified demo dataset (8 scooties, default banners aur reviews) wapas lana chahein:
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDefaults}
+              className="py-2.5 px-5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 shadow cursor-pointer transition-all"
+            >
+              Reset to Factory Demo Products & Settings
+            </button>
+          </div>
+        </form>
       )}
 
       {/* PRODUCT ADD / EDIT MODAL */}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { WHATSAPP_NUMBER, getWhatsAppUrl, DISPLAY_PHONE } from '../utils/whatsapp.ts';
+import { useApp } from '../context/AppContext.tsx';
+import { getWhatsAppUrl } from '../utils/whatsapp.ts';
 import { X, Send, Sparkles } from 'lucide-react';
 
 export const WhatsAppIconSVG: React.FC<{ className?: string }> = ({ className = 'w-7 h-7' }) => (
@@ -17,8 +18,12 @@ export const WhatsAppIconSVG: React.FC<{ className?: string }> = ({ className = 
 );
 
 export const FloatingWhatsApp: React.FC = () => {
+  const { settings } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [customMsg, setCustomMsg] = useState('');
+
+  const phone = settings?.phone || '0321-0424424';
+  const whatsappNum = settings?.whatsappNumber || '03210424424';
 
   const quickPrompts = [
     'Hi! I want to check scooty availability and delivery time.',
@@ -29,8 +34,8 @@ export const FloatingWhatsApp: React.FC = () => {
 
   const handleSendCustom = (e: React.FormEvent) => {
     e.preventDefault();
-    const text = customMsg.trim() || 'Hello VoltGlide Motors! I need assistance with a scooty.';
-    window.open(getWhatsAppUrl(text), '_blank');
+    const text = customMsg.trim() || settings?.whatsappMessage || 'Hello VoltGlide Motors! I need assistance with a scooty.';
+    window.open(getWhatsAppUrl(text, whatsappNum), '_blank');
     setCustomMsg('');
     setIsOpen(false);
   };
@@ -72,7 +77,7 @@ export const FloatingWhatsApp: React.FC = () => {
               <p>
                 Welcome to VoltGlide Scooty Hub! How can we assist you today? You can order directly or choose a quick topic below:
               </p>
-              <span className="block text-[10px] text-slate-400 mt-1 text-right">0321-0424424</span>
+              <span className="block text-[10px] text-slate-400 mt-1 text-right">{phone}</span>
             </div>
 
             {/* Quick Prompts */}
@@ -84,7 +89,7 @@ export const FloatingWhatsApp: React.FC = () => {
               {quickPrompts.map((prompt, idx) => (
                 <a
                   key={idx}
-                  href={getWhatsAppUrl(prompt)}
+                  href={getWhatsAppUrl(prompt, whatsappNum)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-left p-2 rounded-xl bg-slate-900/90 hover:bg-emerald-950/40 text-slate-300 hover:text-emerald-300 border border-slate-800 hover:border-emerald-500/40 transition-all font-medium text-[11px]"
@@ -106,7 +111,7 @@ export const FloatingWhatsApp: React.FC = () => {
             />
             <button
               type="submit"
-              className="bg-[#25D366] hover:bg-[#20ba59] text-white p-2 rounded-xl flex items-center justify-center transition-colors shadow-lg"
+              className="bg-[#25D366] hover:bg-[#20ba59] text-white p-2 rounded-xl flex items-center justify-center transition-colors shadow-lg cursor-pointer"
               title="Send to WhatsApp"
             >
               <Send className="w-4 h-4" />
@@ -123,8 +128,8 @@ export const FloatingWhatsApp: React.FC = () => {
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#128C7E] via-[#25D366] to-[#25D366] text-white flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 border-2 border-white/40 cursor-pointer"
-          aria-label="Contact on WhatsApp 03210424424"
-          title="WhatsApp 03210424424"
+          aria-label={`Contact on WhatsApp ${phone}`}
+          title={`WhatsApp ${phone}`}
         >
           <WhatsAppIconSVG className="w-8 h-8 text-white drop-shadow-md" />
         </button>

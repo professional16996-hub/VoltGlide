@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Product, CartItem, Review, Banner, Order } from '../types.ts';
-import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS } from '../data/defaultData.ts';
+import { Product, CartItem, Review, Banner, Order, SiteSettings } from '../types.ts';
+import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
 
 interface ToastState {
   id: number;
@@ -55,7 +55,12 @@ interface AppContextType {
   refreshProducts: () => Promise<void>;
   refreshBanners: () => Promise<void>;
   refreshReviews: () => Promise<void>;
+  refreshSettings: () => Promise<void>;
   restoreDemoProducts: () => void;
+
+  // Site Settings & Social Links
+  settings: SiteSettings;
+  updateSettings: (newSettings: Partial<SiteSettings>) => Promise<boolean>;
 
   // Admin Auth
   adminLogin: (token: string) => void;
@@ -104,6 +109,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch {}
     return DEFAULT_REVIEWS;
+  });
+
+  // Dynamic Site Settings: phone numbers, WhatsApp, social links, announcement text, showrooms
+  const [settings, setSettings] = useState<SiteSettings>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.phone || parsed.whatsappNumber)) {
+          return {
+            ...DEFAULT_SETTINGS,
+            ...parsed,
+            socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(parsed.socialLinks || {}) },
+            announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(parsed.announcementBar || {}) }
+          };
+        }
+      }
+    } catch {}
+    return DEFAULT_SETTINGS;
   });
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -260,25 +284,92 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setReviews((prev) => (prev && prev.length > 0 ? prev : DEFAULT_REVIEWS));
   }, []);
 
+  const refreshSettings = useCallback(async () => {
+    try {
+      const data = await safeFetchJson<SiteSettings>('/api/settings');
+      if (data && data.success && data.data) {
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...data.data,
+          socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(data.data.socialLinks || {}) },
+          announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(data.data.announcementBar || {}) }
+        });
+        try {
+          localStorage.setItem('voltglide_settings', JSON.stringify(data.data));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Network issue fetching settings:', err);
+    }
+  }, []);
+
+  const updateSettings = async (newSettings: Partial<SiteSettings>): Promise<boolean> => {
+    const updated: SiteSettings = {
+      ...settings,
+      ...newSettings,
+      socialLinks: {
+        ...settings.socialLinks,
+        ...(newSettings.socialLinks || {})
+      },
+      announcementBar: {
+        ...settings.announcementBar,
+        ...(newSettings.announcementBar || {})
+      }
+    };
+
+    // Instant optimistic update
+    setSettings(updated);
+    try {
+      localStorage.setItem('voltglide_settings', JSON.stringify(updated));
+    } catch {}
+
+    try {
+      if (adminToken) {
+        const res = await safeFetchJson<SiteSettings>('/api/admin/settings', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(updated)
+        });
+        if (res && res.success && res.data) {
+          setSettings(res.data);
+          try {
+            localStorage.setItem('voltglide_settings', JSON.stringify(res.data));
+          } catch {}
+        }
+      }
+      showToast('Settings & links updated across website!', 'success');
+      return true;
+    } catch (err) {
+      console.warn('Settings updated locally with warning:', err);
+      showToast('Settings saved locally', 'info');
+      return true;
+    }
+  };
+
   // Explicit demo restore action for mobile or admin convenience
   const restoreDemoProducts = useCallback(() => {
     setProducts(DEFAULT_PRODUCTS);
     setBanners(DEFAULT_BANNERS);
     setReviews(DEFAULT_REVIEWS);
+    setSettings(DEFAULT_SETTINGS);
     try {
       localStorage.setItem('voltglide_products', JSON.stringify(DEFAULT_PRODUCTS));
       localStorage.setItem('voltglide_banners', JSON.stringify(DEFAULT_BANNERS));
       localStorage.setItem('voltglide_reviews', JSON.stringify(DEFAULT_REVIEWS));
+      localStorage.setItem('voltglide_settings', JSON.stringify(DEFAULT_SETTINGS));
     } catch {}
-    showToast('Loaded 8 verified demo scooties!', 'success');
+    showToast('Loaded 8 verified demo scooties & default settings!', 'success');
   }, [showToast]);
 
   useEffect(() => {
     const loadAll = async () => {
-      await Promise.all([refreshProducts(), refreshBanners(), refreshReviews()]);
+      await Promise.all([refreshProducts(), refreshBanners(), refreshReviews(), refreshSettings()]);
     };
     loadAll();
-  }, [refreshProducts, refreshBanners, refreshReviews]);
+  }, [refreshProducts, refreshBanners, refreshReviews, refreshSettings]);
 
   // Cart operations
   const addToCart = (product: Product, quantity = 1, selectedColor?: string) => {
@@ -475,7 +566,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshProducts,
         refreshBanners,
         refreshReviews,
+        refreshSettings,
         restoreDemoProducts,
+        settings,
+        updateSettings,
         adminLogin,
         adminLogout,
         showToast

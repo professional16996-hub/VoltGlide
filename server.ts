@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { Product, Order, Review, Banner, ContactInquiry } from './src/types.ts';
+import { Product, Order, Review, Banner, ContactInquiry, SiteSettings } from './src/types.ts';
 
 dotenv.config();
 
@@ -502,6 +502,35 @@ const INITIAL_ORDERS: Order[] = [
   }
 ];
 
+const INITIAL_SETTINGS: SiteSettings = {
+  phone: '0321-0424424',
+  whatsappNumber: '03210424424',
+  whatsappMessage: 'Hello VoltGlide Motors! I am interested in your scooties.',
+  email: 'sales@voltglide.com',
+  workingHours: 'Mon - Sat: 10:00 AM - 9:00 PM | Sunday: 2:00 PM - 8:00 PM',
+  socialLinks: {
+    whatsapp: 'https://wa.me/923210424424',
+    youtube: 'https://youtube.com/@voltglide',
+    instagram: 'https://instagram.com/voltglidescooties',
+    facebook: 'https://facebook.com/voltglidepakistan',
+    tiktok: 'https://tiktok.com/@voltglide'
+  },
+  announcementBar: {
+    enabled: true,
+    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan',
+    link: '/scooties'
+  },
+  heroBadge: 'PAKISTAN’S #1 OFFICIAL SCOOTY SHOWROOM',
+  heroTagline: 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.',
+  deliveryNotice: 'Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
+  footerText: 'VoltGlide Scooty Hub is Pakistan’s premier destination for cutting-edge electric scooties and dependable petrol scooters.',
+  showrooms: [
+    { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },
+    { city: 'Karachi', title: 'Karachi Center', address: 'Plot 14-C, Shahrah-e-Faisal / DHA Phase 6' },
+    { city: 'Islamabad', title: 'Islamabad Branch', address: 'Block 8-C, Jinnah Avenue, Blue Area' }
+  ]
+};
+
 interface DatabaseSchema {
   products: Product[];
   orders: Order[];
@@ -509,6 +538,7 @@ interface DatabaseSchema {
   reviews: Review[];
   inquiries: ContactInquiry[];
   adminHash: string;
+  settings?: SiteSettings;
 }
 
 // Default admin credentials: admin@voltglide.com / admin12345
@@ -521,6 +551,7 @@ let memoryDb: DatabaseSchema | null = null;
 
 function loadDatabase(): DatabaseSchema {
   if (memoryDb && Array.isArray(memoryDb.products) && memoryDb.products.length > 0) {
+    if (!memoryDb.settings) memoryDb.settings = INITIAL_SETTINGS;
     return memoryDb;
   }
 
@@ -530,6 +561,11 @@ function loadDatabase(): DatabaseSchema {
       if (data.length > 0) {
         const parsed = JSON.parse(data);
         if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
+          if (!parsed.settings) {
+            parsed.settings = INITIAL_SETTINGS;
+          } else {
+            parsed.settings = { ...INITIAL_SETTINGS, ...parsed.settings };
+          }
           memoryDb = parsed;
           return parsed;
         }
@@ -545,7 +581,8 @@ function loadDatabase(): DatabaseSchema {
     banners: INITIAL_BANNERS,
     reviews: INITIAL_REVIEWS,
     inquiries: [],
-    adminHash: hashPassword(DEFAULT_ADMIN_PASS)
+    adminHash: hashPassword(DEFAULT_ADMIN_PASS),
+    settings: INITIAL_SETTINGS
   };
   memoryDb = initialData;
   saveDatabase(initialData);
@@ -1059,7 +1096,8 @@ app.post('/api/admin/reset-defaults', authenticateAdmin, (req, res) => {
     banners: INITIAL_BANNERS,
     reviews: INITIAL_REVIEWS,
     inquiries: [],
-    adminHash: hashPassword(DEFAULT_ADMIN_PASS)
+    adminHash: hashPassword(DEFAULT_ADMIN_PASS),
+    settings: INITIAL_SETTINGS
   };
   saveDatabase(initialData);
   res.json({ success: true, message: 'Database reset to default demo dataset.' });
@@ -1069,6 +1107,33 @@ app.post('/api/admin/reset-defaults', authenticateAdmin, (req, res) => {
 app.get('/api/admin/inquiries', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
   res.json({ success: true, data: db.inquiries });
+});
+
+// Public: Get site settings
+app.get('/api/settings', (req, res) => {
+  const db = loadDatabase();
+  res.json({ success: true, data: db.settings || INITIAL_SETTINGS });
+});
+
+// Admin: Update site settings
+app.put('/api/admin/settings', authenticateAdmin, (req, res) => {
+  const db = loadDatabase();
+  const current = db.settings || INITIAL_SETTINGS;
+  const updated: SiteSettings = {
+    ...current,
+    ...req.body,
+    socialLinks: {
+      ...current.socialLinks,
+      ...(req.body.socialLinks || {})
+    },
+    announcementBar: {
+      ...current.announcementBar,
+      ...(req.body.announcementBar || {})
+    }
+  };
+  db.settings = updated;
+  saveDatabase(db);
+  res.json({ success: true, message: 'Website settings, numbers and links updated successfully!', data: updated });
 });
 
 // Guaranteed JSON error response handler for all /api endpoints
