@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, CartItem, Review, Banner, Order, SiteSettings } from '../types.ts';
 import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
 
@@ -222,10 +222,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Safe JSON helper to prevent syntax errors
+  // Safe JSON helper with automatic cache busting and strict no-cache headers
   const safeFetchJson = async <T = any>(url: string, options?: RequestInit): Promise<{ success: boolean; data?: T; message?: string } | null> => {
     try {
-      const res = await fetch(url, options);
+      const sep = url.includes('?') ? '&' : '?';
+      const cacheBustUrl = `${url}${sep}_cb=${Date.now()}`;
+      const res = await fetch(cacheBustUrl, {
+        ...options,
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          ...(options?.headers || {})
+        }
+      });
       const text = await res.text();
       if (!text || !text.trim()) return null;
       return JSON.parse(text);
@@ -234,11 +244,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // Fetch data with offline & demo fallback
+  // Fetch data with direct server precedence across all devices
   const refreshProducts = useCallback(async () => {
     try {
       const data = await safeFetchJson<Product[]>('/api/products');
-      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data && data.success && Array.isArray(data.data)) {
         setProducts(data.data);
         try {
           localStorage.setItem('voltglide_products', JSON.stringify(data.data));
@@ -246,16 +256,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return;
       }
     } catch (err) {
-      console.warn('Network issue fetching products, keeping active demo products:', err);
+      console.warn('Network issue fetching products, keeping active products:', err);
     }
-    // Guarantee products is never empty
-    setProducts((prev) => (prev && prev.length > 0 ? prev : DEFAULT_PRODUCTS));
   }, []);
 
   const refreshBanners = useCallback(async () => {
     try {
       const data = await safeFetchJson<Banner[]>('/api/banners');
-      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data && data.success && Array.isArray(data.data)) {
         setBanners(data.data);
         try {
           localStorage.setItem('voltglide_banners', JSON.stringify(data.data));
@@ -265,13 +273,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err) {
       console.warn('Network issue fetching banners:', err);
     }
-    setBanners((prev) => (prev && prev.length > 0 ? prev : DEFAULT_BANNERS));
   }, []);
 
   const refreshReviews = useCallback(async () => {
     try {
       const data = await safeFetchJson<Review[]>('/api/reviews');
-      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+      if (data && data.success && Array.isArray(data.data)) {
         setReviews(data.data);
         try {
           localStorage.setItem('voltglide_reviews', JSON.stringify(data.data));
@@ -281,7 +288,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err) {
       console.warn('Network issue fetching reviews:', err);
     }
-    setReviews((prev) => (prev && prev.length > 0 ? prev : DEFAULT_REVIEWS));
   }, []);
 
   const refreshSettings = useCallback(async () => {
@@ -302,6 +308,85 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Network issue fetching settings:', err);
     }
   }, []);
+
+  const loadAll = useCallback(async () => {
+    await Promise.all([refreshProducts(), refreshBanners(), refreshReviews(), refreshSettings()]);
+  }, [refreshProducts, refreshBanners, refreshReviews, refreshSettings]);
+
+  // Master multi-device real-time sync mechanism
+  const lastSyncVersionRef = useRef<number>(0);
+
+  useEffect(() => {
+    // 1. Initial fresh load from server
+    loadAll();
+
+    // 2. Real-time Server-Sent Events (SSE) listener for instant cross-device broadcast
+    let sse: EventSource | null = null;
+    try {
+      sse = new EventSource('/api/sync/stream');
+      sse.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload && payload.version) {
+            if (payload.version !== lastSyncVersionRef.current) {
+              lastSyncVersionRef.current = payload.version;
+              loadAll();
+            }
+          }
+        } catch {
+          loadAll();
+        }
+      };
+      sse.onerror = () => {
+        // SSE gracefully closed or paused by mobile browser
+      };
+    } catch (err) {
+      console.warn('SSE stream not available, falling back to version polling:', err);
+    }
+
+    // 3. Fallback Heartbeat Polling: Every 5 seconds, poll version if tab is visible
+    const interval = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const data = await safeFetchJson<{ version: number }>('/api/sync/version');
+        if (data && data.success && data.data?.version) {
+          if (data.data.version !== lastSyncVersionRef.current) {
+            lastSyncVersionRef.current = data.data.version;
+            await loadAll();
+          }
+        }
+      } catch {}
+    }, 5000);
+
+    // 4. Tab Visibility & Window Focus: When mobile screen turns on or user switches tabs
+    const handleVisibilityOrFocus = () => {
+      if (!document.hidden) {
+        loadAll();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // 5. Cross-tab BroadcastChannel for same-device multi-tab instant sync
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('voltglide_sync_channel');
+        bc.onmessage = () => {
+          loadAll();
+        };
+      }
+    } catch {}
+
+    return () => {
+      if (sse) sse.close();
+      clearInterval(interval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      if (bc) bc.close();
+    };
+  }, [loadAll]);
 
   const updateSettings = async (newSettings: Partial<SiteSettings>): Promise<boolean> => {
     const updated: SiteSettings = {
@@ -340,6 +425,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           } catch {}
         }
       }
+
+      // Broadcast immediately to other tabs on current device
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('voltglide_sync_channel');
+          bc.postMessage({ type: 'settings_updated', timestamp: Date.now() });
+          bc.close();
+        }
+      } catch {}
+
       showToast('Settings & links updated across website!', 'success');
       return true;
     } catch (err) {
@@ -363,13 +458,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {}
     showToast('Loaded 8 verified demo scooties & default settings!', 'success');
   }, [showToast]);
-
-  useEffect(() => {
-    const loadAll = async () => {
-      await Promise.all([refreshProducts(), refreshBanners(), refreshReviews(), refreshSettings()]);
-    };
-    loadAll();
-  }, [refreshProducts, refreshBanners, refreshReviews, refreshSettings]);
 
   // Cart operations
   const addToCart = (product: Product, quantity = 1, selectedColor?: string) => {

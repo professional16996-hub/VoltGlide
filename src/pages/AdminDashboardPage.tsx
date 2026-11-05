@@ -277,12 +277,16 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Load all admin data
+  // Load all admin data with cache-busting and live server priority
   const loadStats = useCallback(async () => {
     if (!adminToken) return;
     try {
-      const res = await fetch('/api/admin/stats', {
-        headers: { Authorization: `Bearer ${adminToken}` }
+      const res = await fetch(`/api/admin/stats?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
       });
       const data = await safeJson(res);
       if (data && data.success && data.data) {
@@ -295,10 +299,13 @@ export const AdminDashboardPage: React.FC = () => {
 
   const loadAdminProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/products');
+      const res = await fetch(`/api/products?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store' }
+      });
       if (res.ok) {
         const data = await safeJson(res);
-        if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
+        if (data && data.success && Array.isArray(data.data)) {
           setAdminProducts(data.data);
           try {
             localStorage.setItem('voltglide_products', JSON.stringify(data.data));
@@ -315,8 +322,12 @@ export const AdminDashboardPage: React.FC = () => {
   const loadAdminOrders = useCallback(async () => {
     if (!adminToken) return;
     try {
-      const res = await fetch('/api/admin/orders', {
-        headers: { Authorization: `Bearer ${adminToken}` }
+      const res = await fetch(`/api/admin/orders?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
       });
       const data = await safeJson(res);
       if (data && data.success && Array.isArray(data.data)) {
@@ -330,8 +341,12 @@ export const AdminDashboardPage: React.FC = () => {
   const loadAdminBanners = useCallback(async () => {
     if (!adminToken) return;
     try {
-      const res = await fetch('/api/admin/banners', {
-        headers: { Authorization: `Bearer ${adminToken}` }
+      const res = await fetch(`/api/admin/banners?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
       });
       const data = await safeJson(res);
       if (data && data.success && Array.isArray(data.data)) {
@@ -348,8 +363,12 @@ export const AdminDashboardPage: React.FC = () => {
   const loadAdminReviews = useCallback(async () => {
     if (!adminToken) return;
     try {
-      const res = await fetch('/api/admin/reviews', {
-        headers: { Authorization: `Bearer ${adminToken}` }
+      const res = await fetch(`/api/admin/reviews?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
       });
       const data = await safeJson(res);
       if (data && data.success && Array.isArray(data.data)) {
@@ -366,8 +385,12 @@ export const AdminDashboardPage: React.FC = () => {
   const loadAdminInquiries = useCallback(async () => {
     if (!adminToken) return;
     try {
-      const res = await fetch('/api/admin/inquiries', {
-        headers: { Authorization: `Bearer ${adminToken}` }
+      const res = await fetch(`/api/admin/inquiries?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
       });
       const data = await safeJson(res);
       if (data && data.success && Array.isArray(data.data)) {
@@ -378,16 +401,42 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [adminToken]);
 
-  useEffect(() => {
-    if (adminToken) {
-      loadStats();
-      loadAdminProducts();
-      loadAdminOrders();
-      loadAdminBanners();
-      loadAdminReviews();
-      loadAdminInquiries();
-    }
+  // Master refresh for all admin data
+  const refreshAllAdminData = useCallback(() => {
+    if (!adminToken) return;
+    loadStats();
+    loadAdminProducts();
+    loadAdminOrders();
+    loadAdminBanners();
+    loadAdminReviews();
+    loadAdminInquiries();
   }, [adminToken, loadStats, loadAdminProducts, loadAdminOrders, loadAdminBanners, loadAdminReviews, loadAdminInquiries]);
+
+  useEffect(() => {
+    refreshAllAdminData();
+
+    // Auto-sync admin panel every 5 seconds or when screen is focused
+    const syncInterval = setInterval(() => {
+      if (!document.hidden && adminToken) {
+        refreshAllAdminData();
+      }
+    }, 5000);
+
+    const handleFocus = () => {
+      if (!document.hidden && adminToken) {
+        refreshAllAdminData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [adminToken, refreshAllAdminData]);
 
   // Curated Preset Image Selectors for fast easy image switching
   const PRESET_IMAGES = [

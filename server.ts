@@ -548,9 +548,23 @@ const hashPassword = (pass: string) => crypto.createHash('sha256').update(pass).
 
 // In-memory database cache to prevent read-locks or disk latency hiccups
 let memoryDb: DatabaseSchema | null = null;
+let dbVersion = Date.now();
+const sseClients = new Set<express.Response>();
+
+export function notifyDataChange() {
+  dbVersion = Date.now();
+  const payload = `data: ${JSON.stringify({ version: dbVersion, time: new Date().toISOString() })}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
 
 function loadDatabase(): DatabaseSchema {
-  if (memoryDb && Array.isArray(memoryDb.products) && memoryDb.products.length > 0) {
+  if (memoryDb && Array.isArray(memoryDb.products)) {
     if (!memoryDb.settings) memoryDb.settings = INITIAL_SETTINGS;
     return memoryDb;
   }
@@ -560,12 +574,16 @@ function loadDatabase(): DatabaseSchema {
       const data = fs.readFileSync(DB_FILE, 'utf-8').trim();
       if (data.length > 0) {
         const parsed = JSON.parse(data);
-        if (parsed.products && Array.isArray(parsed.products) && parsed.products.length > 0) {
+        if (parsed && Array.isArray(parsed.products)) {
           if (!parsed.settings) {
             parsed.settings = INITIAL_SETTINGS;
           } else {
             parsed.settings = { ...INITIAL_SETTINGS, ...parsed.settings };
           }
+          if (!Array.isArray(parsed.banners)) parsed.banners = INITIAL_BANNERS;
+          if (!Array.isArray(parsed.orders)) parsed.orders = INITIAL_ORDERS;
+          if (!Array.isArray(parsed.reviews)) parsed.reviews = INITIAL_REVIEWS;
+          if (!Array.isArray(parsed.inquiries)) parsed.inquiries = [];
           memoryDb = parsed;
           return parsed;
         }
@@ -603,6 +621,7 @@ function saveDatabase(data: DatabaseSchema) {
       console.error('Critical write error to DB_FILE:', directErr);
     }
   }
+  notifyDataChange();
 }
 
 // Universal admin tokens so admin sessions on any mobile device/browser work seamlessly
@@ -634,10 +653,53 @@ function authenticateAdmin(req: express.Request, res: express.Response, next: ex
   next();
 }
 
-// Enforce JSON Content-Type for all API routes
+// Enforce JSON Content-Type and strictly DISABLE caching for all API routes so every device gets live data
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
   next();
+});
+
+// ================= REAL-TIME MULTI-DEVICE SYNC ENDPOINTS =================
+
+// Real-time synchronization version endpoint: allows other phones/devices to detect changes instantly
+app.get('/api/sync/version', (req, res) => {
+  res.json({
+    success: true,
+    version: dbVersion,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Server-Sent Events (SSE) live push stream: instant real-time sync when admin changes anything
+app.get('/api/sync/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  // Send initial handshake with current dbVersion
+  res.write(`data: ${JSON.stringify({ version: dbVersion, type: 'connected' })}\n\n`);
+
+  sseClients.add(res);
+
+  const keepAliveInterval = setInterval(() => {
+    try {
+      res.write(': keep-alive\n\n');
+    } catch {
+      clearInterval(keepAliveInterval);
+      sseClients.delete(res);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAliveInterval);
+    sseClients.delete(res);
+  });
 });
 
 // ================= API ENDPOINTS =================
@@ -919,14 +981,15 @@ app.post('/api/admin/products', authenticateAdmin, (req, res) => {
   }
 
   const newProduct: Product = {
-    id: `scooty-${Date.now()}`,
+    id: productData.id || `scooty-${Date.now()}`,
     name: productData.name,
     category: productData.category || 'Electric',
     brand: productData.brand || 'VoltGlide',
     price: Number(productData.price),
     originalPrice: productData.originalPrice ? Number(productData.originalPrice) : null,
     image: productData.image || '/images/electric_scooty_blue_1793645309587.jpg',
-    gallery: productData.gallery || [productData.image],
+    gallery: Array.isArray(productData.gallery) && productData.gallery.length > 0 ? productData.gallery : [productData.image || '/images/electric_scooty_blue_1793645309587.jpg'],
+    videoUrl: productData.videoUrl || undefined,
     shortDescription: productData.shortDescription || 'Modern reliable scooty for city commuting.',
     description: productData.description || 'Modern reliable scooty for city commuting in Pakistan.',
     features: productData.features || ['High Efficiency Motor', 'Digital Gauge', 'Front Disc Brake'],
@@ -945,7 +1008,7 @@ app.post('/api/admin/products', authenticateAdmin, (req, res) => {
     rating: Number(productData.rating) || 5.0,
     reviewCount: Number(productData.reviewCount) || 0,
     featured: Boolean(productData.featured),
-    createdAt: new Date().toISOString()
+    createdAt: productData.createdAt || new Date().toISOString()
   };
 
   db.products.unshift(newProduct);
@@ -1027,13 +1090,15 @@ app.get('/api/admin/banners', authenticateAdmin, (req, res) => {
 app.post('/api/admin/banners', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
   const newBanner: Banner = {
-    id: `banner-${Date.now()}`,
+    id: req.body.id || `banner-${Date.now()}`,
     tag: req.body.tag || 'PROMOTION',
     title: req.body.title || 'Special Promotion',
     subtitle: req.body.subtitle || 'Exclusive deals on scooters.',
     ctaText: req.body.ctaText || 'Shop Now',
     ctaLink: req.body.ctaLink || '/scooties',
     bgGradient: req.body.bgGradient || 'from-blue-900 via-slate-900 to-black',
+    image: req.body.image || undefined,
+    videoUrl: req.body.videoUrl || undefined,
     active: req.body.active !== undefined ? Boolean(req.body.active) : true
   };
   db.banners.unshift(newBanner);
@@ -1119,16 +1184,18 @@ app.get('/api/settings', (req, res) => {
 app.put('/api/admin/settings', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
   const current = db.settings || INITIAL_SETTINGS;
+  const body = req.body || {};
+  const settingsData = body.settings ? body.settings : body;
   const updated: SiteSettings = {
     ...current,
-    ...req.body,
+    ...settingsData,
     socialLinks: {
       ...current.socialLinks,
-      ...(req.body.socialLinks || {})
+      ...(settingsData.socialLinks || {})
     },
     announcementBar: {
       ...current.announcementBar,
-      ...(req.body.announcementBar || {})
+      ...(settingsData.announcementBar || {})
     }
   };
   db.settings = updated;
