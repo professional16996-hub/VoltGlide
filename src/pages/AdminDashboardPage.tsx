@@ -40,9 +40,16 @@ import {
   Sliders,
   MapPin,
   Share2,
-  Sparkles
+  Sparkles,
+  Lock,
+  KeyRound,
+  ShieldCheck,
+  Key,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
+import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
 
 export const AdminDashboardPage: React.FC = () => {
   const {
@@ -62,11 +69,24 @@ export const AdminDashboardPage: React.FC = () => {
     refreshSettings
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'banners' | 'reviews' | 'inquiries' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
 
   // Dynamic Site Settings Form State
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(settings);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Security & PIN Lock Form State
+  const [securityData, setSecurityData] = useState<{ email: string; pin: string }>({
+    email: 'admin@voltglide.com',
+    pin: '12345'
+  });
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('admin@voltglide.com');
+  const [isSavingSecurity, setIsSavingSecurity] = useState(false);
+  const [showSecurityPin, setShowSecurityPin] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -401,6 +421,26 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [adminToken]);
 
+  const loadSecurity = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch(`/api/admin/security?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
+      });
+      const data = await safeJson(res);
+      if (data && data.success && data.data) {
+        setSecurityData(data.data);
+        if (data.data.email) setNewEmail(data.data.email);
+      }
+    } catch (err) {
+      console.warn('Could not load security info:', err);
+    }
+  }, [adminToken]);
+
   // Master refresh for all admin data
   const refreshAllAdminData = useCallback(() => {
     if (!adminToken) return;
@@ -410,7 +450,8 @@ export const AdminDashboardPage: React.FC = () => {
     loadAdminBanners();
     loadAdminReviews();
     loadAdminInquiries();
-  }, [adminToken, loadStats, loadAdminProducts, loadAdminOrders, loadAdminBanners, loadAdminReviews, loadAdminInquiries]);
+    loadSecurity();
+  }, [adminToken, loadStats, loadAdminProducts, loadAdminOrders, loadAdminBanners, loadAdminReviews, loadAdminInquiries, loadSecurity]);
 
   useEffect(() => {
     refreshAllAdminData();
@@ -790,6 +831,110 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // SECURITY & PIN ACTIONS
+  const handleSaveSecurity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPin && newPin.trim().length < 3) {
+      showToast('PIN must be at least 3 digits/characters', 'error');
+      return;
+    }
+    if (newPin && confirmPin && newPin.trim() !== confirmPin.trim()) {
+      showToast('New PIN and Confirm PIN do not match!', 'error');
+      return;
+    }
+    if (newPassword && newPassword.trim().length < 5) {
+      showToast('Password must be at least 5 characters', 'error');
+      return;
+    }
+    if (newPassword && confirmPassword && newPassword.trim() !== confirmPassword.trim()) {
+      showToast('New Password and Confirm Password do not match!', 'error');
+      return;
+    }
+
+    setIsSavingSecurity(true);
+    try {
+      const res = await fetch('/api/admin/security', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({
+          newPin: newPin ? newPin.trim() : undefined,
+          newPassword: newPassword ? newPassword.trim() : undefined,
+          newEmail: newEmail ? newEmail.trim() : undefined
+        })
+      });
+      const data = await safeJson(res);
+      if (data && data.success) {
+        showToast('Admin Security PIN & credentials updated successfully!', 'success');
+        if (data.data) {
+          setSecurityData(data.data);
+        }
+        setNewPin('');
+        setConfirmPin('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        showToast(data?.message || 'Failed to update security settings', 'error');
+      }
+    } catch {
+      showToast('Server connection issue while updating security', 'error');
+    } finally {
+      setIsSavingSecurity(false);
+    }
+  };
+
+  // INQUIRY ACTIONS
+  const handleDeleteInquiry = async (id: string) => {
+    if (!window.confirm('Delete this customer inquiry?')) return;
+    setAdminInquiries((prev) => prev.filter((i) => i.id !== id));
+    showToast('Inquiry lead deleted.', 'info');
+    try {
+      const res = await fetch(`/api/admin/inquiries/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      await safeJson(res);
+      await loadAdminInquiries();
+    } catch (err) {
+      console.warn('Inquiry delete sync warning:', err);
+    }
+  };
+
+  // DATABASE BACKUP EXPORT
+  const handleExportBackup = () => {
+    try {
+      const backupData = {
+        exportedAt: new Date().toISOString(),
+        products: adminProducts,
+        banners: adminBanners,
+        orders: adminOrders,
+        reviews: adminReviews,
+        inquiries: adminInquiries,
+        settings: settingsForm,
+        security: { email: securityData.email, pin: securityData.pin }
+      };
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voltglide_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Database backup downloaded successfully!', 'success');
+    } catch {
+      showToast('Could not download backup file', 'error');
+    }
+  };
+
+  const handleQuickLock = () => {
+    adminLogout();
+    showToast('Admin screen locked. Use your Security PIN to unlock!', 'info');
+  };
+
   const filteredAdminProducts = adminProducts.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.brand.toLowerCase().includes(productSearch.toLowerCase()) ||
@@ -800,53 +945,88 @@ export const AdminDashboardPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 w-full max-w-full overflow-x-hidden">
       
       {/* Top Admin Header */}
-      <div className="bg-[#0f172a] rounded-3xl p-6 border border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xl">
+      <div className="bg-[#0f172a] rounded-3xl p-5 sm:p-6 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xl">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-cyan-400 flex items-center justify-center border border-cyan-500/40">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-cyan-400 flex items-center justify-center border border-cyan-500/40 flex-shrink-0">
             <LayoutDashboard className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-white font-heading">
                 VoltGlide Admin Control Center
               </h1>
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">
                 LIVE PERSISTENT DB
               </span>
+              <span className="bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                PIN: {securityData.pin || '12345'}
+              </span>
             </div>
             <p className="text-xs text-slate-400">
-              Manage inventory, prices, customer orders, promotional banners, and reviews in real-time.
+              Complete full-fledged management of scooties, orders, customer leads, banners, text & security PIN.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Quick Header Actions */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <button
+            onClick={() => { refreshAllAdminData(); refreshSettings(); showToast('All data refreshed!', 'info'); }}
+            className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Refresh All Server Data"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={handleExportBackup}
+            className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Download JSON Database Backup"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Backup</span>
+          </button>
+
           <button
             onClick={() => navigate('home')}
-            className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Eye className="w-4 h-4 text-cyan-400" />
-            View Public Store
+            <Eye className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Store</span>
           </button>
+
+          <button
+            onClick={handleQuickLock}
+            className="py-2 px-3.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold flex items-center gap-1.5 border border-amber-500/30 transition-colors cursor-pointer"
+            title="Lock screen with PIN"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Lock</span>
+          </button>
+
           <button
             onClick={adminLogout}
             className="py-2 px-3.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold flex items-center gap-1.5 border border-rose-500/30 transition-colors cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
-            Logout
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
           </button>
         </div>
       </div>
 
-      {/* Admin Tabs */}
+      {/* Full-Fledged Admin Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800">
         {[
           { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
-          { id: 'products', label: `Products (${adminProducts.length})`, icon: Package },
+          { id: 'products', label: `Scooties (${adminProducts.length})`, icon: Package },
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
+          { id: 'inquiries', label: `Customer Leads (${adminInquiries.length})`, icon: Mail },
           { id: 'banners', label: `Banners (${adminBanners.length})`, icon: ImageIcon },
           { id: 'reviews', label: `Reviews (${adminReviews.length})`, icon: MessageSquare },
-          { id: 'settings', label: 'Site Settings & Links', icon: Sliders }
+          { id: 'settings', label: 'Site Settings & Links', icon: Sliders },
+          { id: 'security', label: 'Security & PIN Lock', icon: KeyRound }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -960,32 +1140,57 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="space-y-2.5">
                 <button
                   onClick={handleOpenAddProduct}
-                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow"
+                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow cursor-pointer transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   Add New Scooty Model
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('security')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 text-xs font-semibold border border-cyan-500/40 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <KeyRound className="w-4 h-4 text-cyan-400" />
+                  Change Security PIN (Current: {securityData.pin || '12345'})
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <Sliders className="w-4 h-4 text-cyan-400" />
+                  Edit Phone, WhatsApp & Social Links
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('inquiries')}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <Mail className="w-4 h-4 text-blue-400" />
+                  View Customer Leads ({adminInquiries.length})
+                </button>
+
+                <button
                   onClick={handleOpenAddBanner}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center justify-center gap-2 cursor-pointer transition-colors"
                 >
                   <Plus className="w-4 h-4 text-cyan-400" />
                   Add Promo Banner
                 </button>
 
                 <button
-                  onClick={handleResetDefaults}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-800 flex items-center justify-center gap-2"
+                  onClick={handleExportBackup}
+                  className="w-full py-2 px-4 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/40 text-emerald-300 text-xs font-semibold border border-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-colors"
                 >
-                  <RotateCcw className="w-4 h-4 text-amber-400" />
-                  Restore Demo Products
+                  <Download className="w-3.5 h-3.5" />
+                  Download Database Backup (JSON)
                 </button>
               </div>
 
               <div className="pt-4 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
-                <p>• Changes made here save permanently to the database file.</p>
-                <p>• WhatsApp number configured: <strong className="text-emerald-400 font-mono">0321-0424424</strong></p>
+                <p>• Changes save permanently across all devices in real-time.</p>
+                <p>• Mobile Security PIN: <strong className="text-cyan-300 font-mono">{securityData.pin || '12345'}</strong></p>
+                <p>• Live WhatsApp number: <strong className="text-emerald-400 font-mono">{settingsForm.whatsappNumber || '03210424424'}</strong></p>
               </div>
             </div>
 
@@ -1848,6 +2053,331 @@ export const AdminDashboardPage: React.FC = () => {
               Reset to Factory Demo Products & Settings
             </button>
           </div>
+        </form>
+      )}
+
+      {/* TAB 7: CUSTOMER INQUIRIES & LEADS */}
+      {activeTab === 'inquiries' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0f172a] p-5 rounded-3xl border border-slate-800 shadow-xl">
+            <div>
+              <h3 className="font-bold text-white text-base font-heading">
+                Customer Leads & Inquiries ({adminInquiries.length})
+              </h3>
+              <p className="text-xs text-slate-400">
+                Website k contact form aur scooty inquiry se aane wale messages.
+              </p>
+            </div>
+            <button
+              onClick={loadAdminInquiries}
+              className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Refresh Leads</span>
+            </button>
+          </div>
+
+          {adminInquiries.length === 0 ? (
+            <div className="bg-[#0f172a] rounded-3xl p-12 text-center border border-slate-800 space-y-3">
+              <Mail className="w-10 h-10 text-slate-600 mx-auto" />
+              <h4 className="text-white font-bold text-base">No Customer Inquiries Yet</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Customer leads submitted via the Contact page or quick WhatsApp buttons will appear here in real-time.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {adminInquiries.map((inq) => {
+                const whatsappUrl = `https://wa.me/${cleanWhatsAppNumber(inq.phone)}?text=${encodeURIComponent(
+                  `Hello ${inq.name}! Thank you for contacting VoltGlide Scooty Hub regarding "${inq.subject}". How can we assist you with your scooty booking today?`
+                )}`;
+
+                return (
+                  <div key={inq.id} className="bg-[#0f172a] rounded-3xl p-5 border border-slate-800 shadow-lg space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-bold text-white text-sm">{inq.name}</h4>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                          <Phone className="w-3 h-3 text-cyan-400" />
+                          <span>{inq.phone}</span>
+                        </div>
+                        {inq.email && (
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {inq.email}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteInquiry(inq.id)}
+                        className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors cursor-pointer"
+                        title="Delete Inquiry"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 text-xs">
+                      <span className="font-semibold text-cyan-300 block mb-1">
+                        Subject: {inq.subject}
+                      </span>
+                      <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                        {inq.message}
+                      </p>
+                      <span className="block text-[10px] text-slate-500 mt-2">
+                        Received: {new Date(inq.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-colors cursor-pointer"
+                      >
+                        <WhatsAppIconSVG className="w-3.5 h-3.5 fill-white" />
+                        <span>Reply on WhatsApp</span>
+                      </a>
+                      <a
+                        href={`tel:${inq.phone}`}
+                        className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Phone className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Call</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 8: SECURITY & PIN LOCK MANAGEMENT */}
+      {activeTab === 'security' && (
+        <form onSubmit={handleSaveSecurity} className="space-y-6 max-w-4xl text-xs">
+          
+          {/* Header Action Bar */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-cyan-500/20 text-cyan-400">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-white text-base font-heading">
+                    Admin Portal PIN & Security Settings
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Aap apna security PIN, admin password aur email yahan se kabhi b change kar sakte hain.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSavingSecurity}
+              className="py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSavingSecurity ? 'Saving Changes...' : 'Save Security Settings'}</span>
+            </button>
+          </div>
+
+          {/* Active Security Status Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[11px] font-semibold flex items-center gap-1.5">
+                <KeyRound className="w-4 h-4 text-cyan-400" />
+                Active Security PIN
+              </span>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xl font-mono font-extrabold text-cyan-300 tracking-wider">
+                  {showSecurityPin ? securityData.pin || '12345' : '•••••'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSecurityPin(!showSecurityPin)}
+                  className="text-xs text-slate-400 hover:text-white"
+                >
+                  {showSecurityPin ? 'Hide' : 'Reveal'}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">Quick unlock code for all mobile screens</p>
+            </div>
+
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[11px] font-semibold flex items-center gap-1.5">
+                <Mail className="w-4 h-4 text-blue-400" />
+                Admin Email Address
+              </span>
+              <p className="text-sm font-semibold text-white truncate pt-1">
+                {securityData.email || 'admin@voltglide.com'}
+              </p>
+              <p className="text-[10px] text-slate-500">Master account identifier</p>
+            </div>
+
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[11px] font-semibold flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-amber-400" />
+                Quick Lock
+              </span>
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleQuickLock}
+                  className="py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/30 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Lock Dashboard Screen
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500">Instantly protects session on mobile</p>
+            </div>
+          </div>
+
+          {/* Section 1: Change Security PIN */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 border border-slate-800 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
+              <KeyRound className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  1. Change Mobile Quick Security PIN
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Mobile se fast login karne k liye 4-6 digit numeric PIN set karein (Default: 12345).
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  New Security PIN
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  placeholder="e.g. 55667 ya 1234"
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Confirm New PIN
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  placeholder="Re-enter new PIN"
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+
+            {/* Quick Helper buttons */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+              <span className="text-slate-400 font-semibold">Suggested Quick PINs:</span>
+              {['12345', '78600', '99887', '0000', '1122'].map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  onClick={() => { setNewPin(sug); setConfirmPin(sug); }}
+                  className="py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono font-bold border border-slate-700 cursor-pointer"
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Change Password & Email */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 border border-slate-800 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
+              <Lock className="w-5 h-5 text-blue-400" />
+              <div>
+                <h4 className="font-bold text-white text-sm font-heading">
+                  2. Change Admin Password & Email (Optional)
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Agar aap email aur full password b change karna chahein to yahan se kar sakte hain.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Admin Email Address
+                </label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="admin@voltglide.com"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    New Admin Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Enter new password (min 5 chars)"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Re-enter new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Save Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-blue-950/60 to-cyan-950/40 border border-cyan-500/30">
+            <div>
+              <p className="text-white font-bold text-xs flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                Live Server Persistence
+              </p>
+              <p className="text-slate-400 text-[11px]">
+                Naya PIN save karne k baad aap kisi b mobile se isi PIN k sath foran login kar saken ge.
+              </p>
+            </div>
+            <button
+              type="submit"
+              disabled={isSavingSecurity}
+              className="w-full sm:w-auto py-3 px-8 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSavingSecurity ? 'Saving Changes...' : 'Save New PIN & Security'}</span>
+            </button>
+          </div>
+
         </form>
       )}
 

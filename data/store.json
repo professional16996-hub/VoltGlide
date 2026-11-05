@@ -528,5 +528,7 @@
     "settings": {
       "phone": "0321-0424424"
     }
-  }
+  },
+  "adminPin": "12345",
+  "adminEmail": "admin@voltglide.com"
 }

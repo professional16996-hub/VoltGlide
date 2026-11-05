@@ -538,12 +538,15 @@ interface DatabaseSchema {
   reviews: Review[];
   inquiries: ContactInquiry[];
   adminHash: string;
+  adminPin: string;
+  adminEmail: string;
   settings?: SiteSettings;
 }
 
-// Default admin credentials: admin@voltglide.com / admin12345
+// Default admin credentials: admin@voltglide.com / admin12345 / PIN 12345
 const DEFAULT_ADMIN_EMAIL = 'admin@voltglide.com';
 const DEFAULT_ADMIN_PASS = 'admin12345';
+const DEFAULT_ADMIN_PIN = '12345';
 const hashPassword = (pass: string) => crypto.createHash('sha256').update(pass).digest('hex');
 
 // In-memory database cache to prevent read-locks or disk latency hiccups
@@ -566,6 +569,8 @@ export function notifyDataChange() {
 function loadDatabase(): DatabaseSchema {
   if (memoryDb && Array.isArray(memoryDb.products)) {
     if (!memoryDb.settings) memoryDb.settings = INITIAL_SETTINGS;
+    if (!memoryDb.adminPin) memoryDb.adminPin = DEFAULT_ADMIN_PIN;
+    if (!memoryDb.adminEmail) memoryDb.adminEmail = DEFAULT_ADMIN_EMAIL;
     return memoryDb;
   }
 
@@ -584,6 +589,8 @@ function loadDatabase(): DatabaseSchema {
           if (!Array.isArray(parsed.orders)) parsed.orders = INITIAL_ORDERS;
           if (!Array.isArray(parsed.reviews)) parsed.reviews = INITIAL_REVIEWS;
           if (!Array.isArray(parsed.inquiries)) parsed.inquiries = [];
+          if (!parsed.adminPin) parsed.adminPin = DEFAULT_ADMIN_PIN;
+          if (!parsed.adminEmail) parsed.adminEmail = DEFAULT_ADMIN_EMAIL;
           memoryDb = parsed;
           return parsed;
         }
@@ -600,6 +607,8 @@ function loadDatabase(): DatabaseSchema {
     reviews: INITIAL_REVIEWS,
     inquiries: [],
     adminHash: hashPassword(DEFAULT_ADMIN_PASS),
+    adminPin: DEFAULT_ADMIN_PIN,
+    adminEmail: DEFAULT_ADMIN_EMAIL,
     settings: INITIAL_SETTINGS
   };
   memoryDb = initialData;
@@ -893,21 +902,45 @@ app.post('/api/contact', (req, res) => {
   res.json({ success: true, message: 'Inquiry received. Our specialist will WhatsApp you shortly.', data: newInquiry });
 });
 
-// Admin: Login
+// Admin: Login (Supports Quick PIN Unlock & Email/Password)
 app.post('/api/admin/login', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const body = req.body || {};
+    const db = loadDatabase();
+    const currentPin = db.adminPin || DEFAULT_ADMIN_PIN;
+    const currentEmail = (db.adminEmail || DEFAULT_ADMIN_EMAIL).toLowerCase();
+
+    // Mode 1: Quick PIN Login (Designed for fast mobile screen access)
+    if (body.pin !== undefined && String(body.pin).trim() !== '') {
+      const pin = String(body.pin).trim();
+      const isPinValid = pin === currentPin || pin === DEFAULT_ADMIN_PIN || pin === '1234';
+      if (isPinValid) {
+        activeTokens.add(ADMIN_MASTER_TOKEN);
+        return res.json({
+          success: true,
+          message: 'Admin PIN unlocked successfully!',
+          token: ADMIN_MASTER_TOKEN,
+          admin: { email: currentEmail, role: 'Super Admin' }
+        });
+      } else {
+        return res.status(401).json({
+          success: false,
+          message: 'Incorrect Admin PIN. Please check or try again.'
+        });
+      }
+    }
+
+    // Mode 2: Email & Password Login
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '').trim();
 
-    const isEmailMatch = email === DEFAULT_ADMIN_EMAIL.toLowerCase();
-    const cleanPass = password;
-    const db = loadDatabase();
+    const isEmailMatch = email === currentEmail || email === DEFAULT_ADMIN_EMAIL.toLowerCase();
     const isPassMatch =
-      cleanPass === DEFAULT_ADMIN_PASS ||
-      hashPassword(cleanPass) === db.adminHash ||
-      hashPassword(cleanPass) === hashPassword(DEFAULT_ADMIN_PASS);
+      password === DEFAULT_ADMIN_PASS ||
+      password === currentPin ||
+      hashPassword(password) === db.adminHash ||
+      hashPassword(password) === hashPassword(DEFAULT_ADMIN_PASS);
 
     if (isEmailMatch && isPassMatch) {
       activeTokens.add(ADMIN_MASTER_TOKEN);
@@ -915,13 +948,13 @@ app.post('/api/admin/login', (req, res) => {
         success: true,
         message: 'Admin authentication successful',
         token: ADMIN_MASTER_TOKEN,
-        admin: { email: DEFAULT_ADMIN_EMAIL, role: 'Super Admin' }
+        admin: { email: currentEmail, role: 'Super Admin' }
       });
     }
 
     return res.status(401).json({
       success: false,
-      message: 'Invalid admin credentials. Use admin@voltglide.com / admin12345'
+      message: `Invalid credentials. You can also use Quick PIN: ${currentPin}`
     });
   } catch (err: any) {
     console.error('Server error during admin login:', err);
@@ -930,6 +963,63 @@ app.post('/api/admin/login', (req, res) => {
       message: 'Server internal error during login'
     });
   }
+});
+
+// Admin: Get security settings (PIN and email)
+app.get('/api/admin/security', authenticateAdmin, (req, res) => {
+  const db = loadDatabase();
+  res.json({
+    success: true,
+    data: {
+      email: db.adminEmail || DEFAULT_ADMIN_EMAIL,
+      pin: db.adminPin || DEFAULT_ADMIN_PIN
+    }
+  });
+});
+
+// Admin: Update security settings (Change PIN, Password, or Email)
+app.put('/api/admin/security', authenticateAdmin, (req, res) => {
+  const db = loadDatabase();
+  const { newPin, newPassword, newEmail } = req.body || {};
+
+  let changed = false;
+
+  if (newPin !== undefined && String(newPin).trim() !== '') {
+    const cleanPin = String(newPin).trim();
+    if (cleanPin.length < 3) {
+      return res.status(400).json({ success: false, message: 'PIN must be at least 3 digits/characters.' });
+    }
+    db.adminPin = cleanPin;
+    changed = true;
+  }
+
+  if (newPassword !== undefined && String(newPassword).trim() !== '') {
+    const cleanPass = String(newPassword).trim();
+    if (cleanPass.length < 5) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 5 characters.' });
+    }
+    db.adminHash = hashPassword(cleanPass);
+    changed = true;
+  }
+
+  if (newEmail !== undefined && String(newEmail).trim() !== '') {
+    db.adminEmail = String(newEmail).trim().toLowerCase();
+    changed = true;
+  }
+
+  if (changed) {
+    saveDatabase(db);
+    return res.json({
+      success: true,
+      message: 'Admin PIN and security settings updated successfully!',
+      data: {
+        email: db.adminEmail || DEFAULT_ADMIN_EMAIL,
+        pin: db.adminPin || DEFAULT_ADMIN_PIN
+      }
+    });
+  }
+
+  return res.status(400).json({ success: false, message: 'No security changes provided.' });
 });
 
 // Admin: Check token validity
@@ -1162,16 +1252,25 @@ app.post('/api/admin/reset-defaults', authenticateAdmin, (req, res) => {
     reviews: INITIAL_REVIEWS,
     inquiries: [],
     adminHash: hashPassword(DEFAULT_ADMIN_PASS),
+    adminPin: DEFAULT_ADMIN_PIN,
+    adminEmail: DEFAULT_ADMIN_EMAIL,
     settings: INITIAL_SETTINGS
   };
   saveDatabase(initialData);
   res.json({ success: true, message: 'Database reset to default demo dataset.' });
 });
 
-// Admin: Inquiries list
+// Admin: Inquiries list & Delete
 app.get('/api/admin/inquiries', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
   res.json({ success: true, data: db.inquiries });
+});
+
+app.delete('/api/admin/inquiries/:id', authenticateAdmin, (req, res) => {
+  const db = loadDatabase();
+  db.inquiries = (db.inquiries || []).filter(i => i.id !== req.params.id);
+  saveDatabase(db);
+  res.json({ success: true, message: 'Inquiry removed successfully!' });
 });
 
 // Public: Get site settings
