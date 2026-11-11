@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { Product, CartItem, Review, Banner, Order, SiteSettings } from '../types.ts';
+import { Product, CartItem, Review, Banner, Order, SiteSettings, CustomerUser } from '../types.ts';
 import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
 
 interface ToastState {
@@ -29,6 +29,18 @@ interface AppContextType {
   setSearchQuery: (query: string) => void;
   setSelectedCategory: (cat: string) => void;
   
+  // Customer Authentication & Account
+  customer: CustomerUser | null;
+  customerToken: string | null;
+  isCustomerLoggedIn: boolean;
+  customerOrders: Order[];
+  customerLogin: (identifier: string, pass: string) => Promise<{ success: boolean; message: string }>;
+  customerRegister: (data: { name: string; phone: string; email?: string; password: string; city?: string; address?: string }) => Promise<{ success: boolean; message: string }>;
+  customerLogout: () => void;
+  updateCustomerProfile: (data: Partial<CustomerUser>) => Promise<boolean>;
+  changeCustomerPassword: (oldPass: string, newPass: string) => Promise<{ success: boolean; message: string }>;
+  refreshCustomerOrders: () => Promise<void>;
+
   // Cart Actions
   addToCart: (product: Product, quantity?: number, selectedColor?: string) => void;
   removeFromCart: (productId: string, selectedColor?: string) => void;
@@ -162,6 +174,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [adminToken, setAdminToken] = useState<string | null>(() => {
     return localStorage.getItem('voltglide_admin_token');
   });
+
+  // Customer Account state
+  const [customer, setCustomer] = useState<CustomerUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_customer');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [customerToken, setCustomerToken] = useState<string | null>(() => {
+    return localStorage.getItem('voltglide_customer_token');
+  });
+
+  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();
@@ -550,16 +578,164 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Customer Orders refresh
+  const refreshCustomerOrders = useCallback(async () => {
+    if (!customer) return;
+    try {
+      const query = new URLSearchParams();
+      if (customer.id) query.set('customerId', customer.id);
+      if (customer.phone) query.set('phone', customer.phone);
+      const res = await safeFetchJson<Order[]>(`/api/customer/orders?${query.toString()}`);
+      if (res && res.success && Array.isArray(res.data)) {
+        setCustomerOrders(res.data);
+      }
+    } catch (err) {
+      console.warn('Error refreshing customer orders:', err);
+    }
+  }, [customer]);
+
+  useEffect(() => {
+    if (customer) {
+      refreshCustomerOrders();
+    } else {
+      setCustomerOrders([]);
+    }
+  }, [customer, refreshCustomerOrders]);
+
+  // Customer Login
+  const customerLogin = async (identifier: string, pass: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await safeFetchJson<{ customer: CustomerUser; token: string }>('/api/customer/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password: pass })
+      });
+
+      if (res && res.success && res.data) {
+        setCustomer(res.data.customer);
+        setCustomerToken(res.data.token);
+        localStorage.setItem('voltglide_customer', JSON.stringify(res.data.customer));
+        localStorage.setItem('voltglide_customer_token', res.data.token);
+        showToast(res.message || `Welcome back, ${res.data.customer.name}!`, 'success');
+        return { success: true, message: res.message || 'Logged in successfully' };
+      }
+      showToast(res?.message || 'Login failed. Please check credentials.', 'error');
+      return { success: false, message: res?.message || 'Login failed' };
+    } catch {
+      showToast('Connection error while logging in.', 'error');
+      return { success: false, message: 'Server connection error' };
+    }
+  };
+
+  // Customer Register
+  const customerRegister = async (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    password: string;
+    city?: string;
+    address?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await safeFetchJson<{ customer: CustomerUser; token: string }>('/api/customer/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res && res.success && res.data) {
+        setCustomer(res.data.customer);
+        setCustomerToken(res.data.token);
+        localStorage.setItem('voltglide_customer', JSON.stringify(res.data.customer));
+        localStorage.setItem('voltglide_customer_token', res.data.token);
+        showToast(res.message || 'Account created successfully!', 'success');
+        return { success: true, message: res.message || 'Account created successfully' };
+      }
+      showToast(res?.message || 'Registration failed.', 'error');
+      return { success: false, message: res?.message || 'Registration failed' };
+    } catch {
+      showToast('Connection error while creating account.', 'error');
+      return { success: false, message: 'Server connection error' };
+    }
+  };
+
+  // Customer Logout
+  const customerLogout = () => {
+    setCustomer(null);
+    setCustomerToken(null);
+    setCustomerOrders([]);
+    localStorage.removeItem('voltglide_customer');
+    localStorage.removeItem('voltglide_customer_token');
+    showToast('Aap account se logout ho gaye hain.', 'info');
+  };
+
+  // Update profile
+  const updateCustomerProfile = async (data: Partial<CustomerUser>): Promise<boolean> => {
+    if (!customer) return false;
+    try {
+      const res = await safeFetchJson<{ customer: CustomerUser }>('/api/customer/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {})
+        },
+        body: JSON.stringify({ ...data, customerId: customer.id })
+      });
+      if (res && res.success && res.data) {
+        const updated = res.data.customer;
+        setCustomer(updated);
+        localStorage.setItem('voltglide_customer', JSON.stringify(updated));
+        showToast('Profile updated successfully!', 'success');
+        return true;
+      }
+      showToast(res?.message || 'Failed to update profile.', 'error');
+      return false;
+    } catch {
+      showToast('Error updating profile.', 'error');
+      return false;
+    }
+  };
+
+  // Change password
+  const changeCustomerPassword = async (oldPass: string, newPass: string): Promise<{ success: boolean; message: string }> => {
+    if (!customer) return { success: false, message: 'Not logged in' };
+    try {
+      const res = await safeFetchJson('/api/customer/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(customerToken ? { Authorization: `Bearer ${customerToken}` } : {})
+        },
+        body: JSON.stringify({ customerId: customer.id, oldPassword: oldPass, newPassword: newPass })
+      });
+      if (res && res.success) {
+        showToast('Password updated successfully!', 'success');
+        return { success: true, message: res.message || 'Password updated' };
+      }
+      showToast(res?.message || 'Password update failed.', 'error');
+      return { success: false, message: res?.message || 'Failed' };
+    } catch {
+      showToast('Connection error.', 'error');
+      return { success: false, message: 'Server error' };
+    }
+  };
+
   // Order submission
   const placeOrder = async (orderData: Partial<Order>): Promise<{ success: boolean; orderId?: string; message: string }> => {
     try {
+      const payload: Partial<Order> = {
+        ...orderData,
+        customerId: orderData.customerId || (customer ? customer.id : undefined)
+      };
+
       const data = await safeFetchJson<Order>('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(payload)
       });
       if (data && data.success && data.data) {
         clearCart();
+        refreshCustomerOrders();
         showToast(`Order #${data.data.id} placed successfully!`, 'success');
         return { success: true, orderId: data.data.id, message: data.message || 'Order placed!' };
       } else {
@@ -639,6 +815,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         navigate,
         setSearchQuery,
         setSelectedCategory,
+        // Customer
+        customer,
+        customerToken,
+        isCustomerLoggedIn: Boolean(customer),
+        customerOrders,
+        customerLogin,
+        customerRegister,
+        customerLogout,
+        updateCustomerProfile,
+        changeCustomerPassword,
+        refreshCustomerOrders,
+        // Cart
         addToCart,
         removeFromCart,
         updateCartQuantity,

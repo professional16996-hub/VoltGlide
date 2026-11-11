@@ -10,7 +10,8 @@ import {
   Mail,
   Lock,
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  User
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -21,6 +22,8 @@ export const Navbar: React.FC = () => {
     navigate,
     isAdmin,
     adminLogout,
+    customer,
+    isCustomerLoggedIn,
     searchQuery,
     setSearchQuery,
     setSelectedCategory,
@@ -52,11 +55,11 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0a0f1d]/95 backdrop-blur-md border-b border-slate-800/80 shadow-2xl">
+    <header className="sticky top-0 z-40 bg-[#080a11]/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       {/* Dynamic Announcement Bar configured from Admin Panel */}
       {settings?.announcementBar?.enabled && settings.announcementBar.text && (
-        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-cyan-950 border-b border-cyan-500/30 text-white text-[11px] sm:text-xs py-1.5 px-4 text-center flex items-center justify-center gap-2 font-medium tracking-wide">
-          <span>{settings.announcementBar.text}</span>
+        <div className="bg-[#0e1424] border-b border-white/[0.06] text-slate-200 text-[11px] sm:text-xs py-2 px-4 text-center flex items-center justify-center gap-2 font-medium tracking-wide">
+          <span className="text-slate-300">{settings.announcementBar.text}</span>
           {settings.announcementBar.link && (
             <button
               onClick={() => {
@@ -68,7 +71,7 @@ export const Navbar: React.FC = () => {
                   navigate(path || 'scooties');
                 }
               }}
-              className="underline text-cyan-300 hover:text-white font-bold ml-1 transition-colors cursor-pointer"
+              className="text-blue-400 hover:text-cyan-300 font-semibold ml-1 transition-colors cursor-pointer"
             >
               View Offer →
             </button>
@@ -78,38 +81,38 @@ export const Navbar: React.FC = () => {
 
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-4">
+        <div className="flex items-center justify-between h-18 gap-4">
           
           {/* Logo & Brand */}
           <div
             onClick={() => navigate('home')}
-            className="flex items-center gap-3 cursor-pointer group select-none"
+            className="flex items-center gap-2.5 cursor-pointer group select-none"
           >
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 p-0.5 shadow-lg shadow-blue-500/30 group-hover:shadow-cyan-400/50 transition-all duration-300">
-              <div className="w-full h-full bg-[#0a0f1d] rounded-[10px] flex items-center justify-center">
-                <Zap className="w-6 h-6 text-cyan-400 fill-cyan-400 group-hover:scale-110 transition-transform duration-300" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 p-0.5 shadow-md shadow-blue-500/20 group-hover:shadow-cyan-400/30 transition-all duration-300">
+              <div className="w-full h-full bg-[#080a11] rounded-[9px] flex items-center justify-center">
+                <Zap className="w-4 h-4 text-cyan-400 fill-cyan-400 group-hover:scale-110 transition-transform duration-300" />
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-2xl font-extrabold tracking-tight text-white font-heading">
-                  VOLT<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">GLIDE</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xl font-black tracking-tight text-white font-heading">
+                  VOLT<span className="text-cyan-400">GLIDE</span>
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 tracking-wider uppercase font-semibold">
-                Scooty Hub Pakistan
+              <p className="text-[9px] text-slate-400 tracking-widest uppercase font-semibold">
+                Motors Pakistan
               </p>
             </div>
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-medium">
+          <nav className="hidden lg:flex items-center gap-7 text-xs font-semibold tracking-wide uppercase">
             <button
               onClick={() => navigate('home')}
               className={`transition-colors py-1 cursor-pointer ${
                 currentRoute === 'home'
-                  ? 'text-cyan-400 font-semibold border-b-2 border-cyan-400'
-                  : 'text-slate-300 hover:text-white'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Home
@@ -121,8 +124,8 @@ export const Navbar: React.FC = () => {
               }}
               className={`transition-colors py-1 cursor-pointer ${
                 currentRoute === 'scooties'
-                  ? 'text-cyan-400 font-semibold border-b-2 border-cyan-400'
-                  : 'text-slate-300 hover:text-white'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               All Scooties
@@ -132,9 +135,8 @@ export const Navbar: React.FC = () => {
                 setSelectedCategory('Electric');
                 navigate('scooties');
               }}
-              className="text-slate-300 hover:text-cyan-400 transition-colors py-1 flex items-center gap-1 cursor-pointer"
+              className="text-slate-400 hover:text-cyan-400 transition-colors py-1 cursor-pointer"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
               Electric EV
             </button>
             <button
@@ -142,7 +144,7 @@ export const Navbar: React.FC = () => {
                 setSelectedCategory('Petrol');
                 navigate('scooties');
               }}
-              className="text-slate-300 hover:text-cyan-400 transition-colors py-1 cursor-pointer"
+              className="text-slate-400 hover:text-white transition-colors py-1 cursor-pointer"
             >
               Petrol / Gas
             </button>
@@ -150,8 +152,8 @@ export const Navbar: React.FC = () => {
               onClick={() => navigate('about')}
               className={`transition-colors py-1 cursor-pointer ${
                 currentRoute === 'about'
-                  ? 'text-cyan-400 font-semibold border-b-2 border-cyan-400'
-                  : 'text-slate-300 hover:text-white'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               About Us
@@ -160,8 +162,8 @@ export const Navbar: React.FC = () => {
               onClick={() => navigate('reviews')}
               className={`transition-colors py-1 cursor-pointer ${
                 currentRoute === 'reviews'
-                  ? 'text-cyan-400 font-semibold border-b-2 border-cyan-400'
-                  : 'text-slate-300 hover:text-white'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Reviews
@@ -170,8 +172,8 @@ export const Navbar: React.FC = () => {
               onClick={() => navigate('contact')}
               className={`transition-colors py-1 cursor-pointer ${
                 currentRoute === 'contact'
-                  ? 'text-cyan-400 font-semibold border-b-2 border-cyan-400'
-                  : 'text-slate-300 hover:text-white'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               Contact Us
@@ -179,42 +181,61 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Right Action Icons & Three Dots Menu */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             
             {/* Search Input / Trigger */}
             <div className="relative hidden md:block">
               <form onSubmit={handleSearchSubmit} className="relative">
                 <input
                   type="text"
-                  placeholder="Search scooty (Honda, Vespa, EV)..."
+                  placeholder="Search scooties (EV, Honda)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-slate-900/90 text-sm text-slate-200 placeholder-slate-400 pl-9 pr-4 py-1.5 rounded-full border border-slate-700/80 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 w-52 lg:w-64 transition-all"
+                  className="bg-white/[0.04] text-xs text-slate-100 placeholder-slate-400 pl-8 pr-4 py-2 rounded-full border border-white/[0.08] focus:outline-none focus:border-cyan-400/60 focus:bg-white/[0.07] w-48 lg:w-60 transition-all font-medium"
                 />
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
               </form>
             </div>
 
             {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="md:hidden p-2 text-slate-300 hover:text-cyan-400 rounded-lg hover:bg-slate-800/60"
+              className="md:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-white/[0.04] border border-white/[0.08]"
               aria-label="Search"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4" />
             </button>
 
             {/* Shopping Cart Button */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-slate-300 hover:text-cyan-400 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
+              className="relative p-2 text-slate-300 hover:text-white rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
               aria-label="Shopping Cart"
               title="View Cart"
             >
-              <ShoppingCart className="w-5 h-5" />
+              <ShoppingCart className="w-4 h-4" />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-cyan-400 text-black text-[11px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shadow">
+                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
                   {cartCount}
+                </span>
+              )}
+            </button>
+
+            {/* Customer Account Button */}
+            <button
+              onClick={() => navigate('customer-account')}
+              className={`p-2 rounded-xl transition-all border cursor-pointer flex items-center gap-1.5 ${
+                currentRoute === 'customer-account'
+                  ? 'bg-blue-600/30 text-white border-blue-500 shadow-md shadow-blue-500/20'
+                  : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border-white/[0.08]'
+              }`}
+              title={isCustomerLoggedIn ? `Customer Account: ${customer?.name}` : 'Customer Sign In / Register'}
+              aria-label="Customer Account"
+            >
+              <User className="w-4 h-4 text-cyan-400" />
+              {isCustomerLoggedIn && (
+                <span className="hidden xl:inline-block text-xs font-semibold text-slate-200 max-w-[85px] truncate">
+                  {customer?.name.split(' ')[0]}
                 </span>
               )}
             </button>
@@ -226,12 +247,12 @@ export const Navbar: React.FC = () => {
                 className={`p-2 rounded-xl transition-all border cursor-pointer ${
                   isThreeDotsOpen
                     ? 'bg-blue-600/30 text-cyan-300 border-cyan-500 shadow-md shadow-blue-500/20'
-                    : 'bg-slate-900/80 text-slate-300 hover:text-white border-slate-700/80 hover:border-slate-500'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border-white/[0.08]'
                 }`}
                 title="Options Menu"
                 aria-label="Options Menu"
               >
-                <MoreVertical className="w-5 h-5" />
+                <MoreVertical className="w-4 h-4" />
               </button>
 
               {/* Dropdown Menu */}
@@ -322,6 +343,17 @@ export const Navbar: React.FC = () => {
                     >
                       <Mail className="w-4 h-4 text-cyan-400" />
                       Contact Us
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        navigate('customer-account');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-cyan-300 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <User className="w-4 h-4 text-cyan-400" />
+                      {isCustomerLoggedIn ? `My Account (${customer?.name.split(' ')[0]})` : 'Customer Sign In / Register'}
                     </button>
 
                     <div className="my-1.5 border-t border-slate-800/80"></div>

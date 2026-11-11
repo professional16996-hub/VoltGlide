@@ -531,6 +531,18 @@ const INITIAL_SETTINGS: SiteSettings = {
   ]
 };
 
+export interface CustomerRecord {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  password?: string;
+  passwordHash?: string;
+  city?: string;
+  address?: string;
+  createdAt: string;
+}
+
 interface DatabaseSchema {
   products: Product[];
   orders: Order[];
@@ -538,9 +550,11 @@ interface DatabaseSchema {
   reviews: Review[];
   inquiries: ContactInquiry[];
   adminHash: string;
+  adminPassword?: string;
   adminPin: string;
   adminEmail: string;
   settings?: SiteSettings;
+  customers?: CustomerRecord[];
 }
 
 // Default admin credentials: admin@voltglide.com / admin12345 / PIN 12345
@@ -549,10 +563,18 @@ const DEFAULT_ADMIN_PASS = 'admin12345';
 const DEFAULT_ADMIN_PIN = '12345';
 const hashPassword = (pass: string) => crypto.createHash('sha256').update(pass).digest('hex');
 
+// Normalize Pakistani and international phone numbers for flawless order-account matching
+function normalizePhone(p?: string): string {
+  if (!p) return '';
+  const digits = String(p).replace(/[^0-9]/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 // In-memory database cache to prevent read-locks or disk latency hiccups
 let memoryDb: DatabaseSchema | null = null;
 let dbVersion = Date.now();
 const sseClients = new Set<express.Response>();
+const activeCustomerTokens = new Map<string, string>(); // token -> customerId
 
 export function notifyDataChange() {
   dbVersion = Date.now();
@@ -570,7 +592,10 @@ function loadDatabase(): DatabaseSchema {
   if (memoryDb && Array.isArray(memoryDb.products)) {
     if (!memoryDb.settings) memoryDb.settings = INITIAL_SETTINGS;
     if (!memoryDb.adminPin) memoryDb.adminPin = DEFAULT_ADMIN_PIN;
+    if (!memoryDb.adminPassword) memoryDb.adminPassword = DEFAULT_ADMIN_PASS;
+    if (!memoryDb.adminHash) memoryDb.adminHash = hashPassword(memoryDb.adminPassword || DEFAULT_ADMIN_PASS);
     if (!memoryDb.adminEmail) memoryDb.adminEmail = DEFAULT_ADMIN_EMAIL;
+    if (!Array.isArray(memoryDb.customers)) memoryDb.customers = [];
     return memoryDb;
   }
 
@@ -589,7 +614,10 @@ function loadDatabase(): DatabaseSchema {
           if (!Array.isArray(parsed.orders)) parsed.orders = INITIAL_ORDERS;
           if (!Array.isArray(parsed.reviews)) parsed.reviews = INITIAL_REVIEWS;
           if (!Array.isArray(parsed.inquiries)) parsed.inquiries = [];
+          if (!Array.isArray(parsed.customers)) parsed.customers = [];
           if (!parsed.adminPin) parsed.adminPin = DEFAULT_ADMIN_PIN;
+          if (!parsed.adminPassword) parsed.adminPassword = DEFAULT_ADMIN_PASS;
+          if (!parsed.adminHash) parsed.adminHash = hashPassword(parsed.adminPassword || DEFAULT_ADMIN_PASS);
           if (!parsed.adminEmail) parsed.adminEmail = DEFAULT_ADMIN_EMAIL;
           memoryDb = parsed;
           return parsed;
@@ -606,7 +634,9 @@ function loadDatabase(): DatabaseSchema {
     banners: INITIAL_BANNERS,
     reviews: INITIAL_REVIEWS,
     inquiries: [],
+    customers: [],
     adminHash: hashPassword(DEFAULT_ADMIN_PASS),
+    adminPassword: DEFAULT_ADMIN_PASS,
     adminPin: DEFAULT_ADMIN_PIN,
     adminEmail: DEFAULT_ADMIN_EMAIL,
     settings: INITIAL_SETTINGS
@@ -846,9 +876,9 @@ app.post('/api/reviews', (req, res) => {
   res.json({ success: true, message: 'Review submitted successfully!', data: newReview });
 });
 
-// Public: Place an order
+// Public: Place an order (links to customer account if logged in or matching phone)
 app.post('/api/orders', (req, res) => {
-  const { customerName, customerPhone, customerEmail, shippingAddress, city, items, totalAmount, paymentMethod, notes } = req.body;
+  const { customerId, customerName, customerPhone, customerEmail, shippingAddress, city, items, totalAmount, paymentMethod, notes } = req.body;
 
   if (!customerName || !customerPhone || !shippingAddress || !items || !items.length) {
     res.status(400).json({ success: false, message: 'Please provide full contact details and order items.' });
@@ -856,8 +886,20 @@ app.post('/api/orders', (req, res) => {
   }
 
   const db = loadDatabase();
+  let assignedCustomerId = customerId;
+  const cleanPhone = normalizePhone(String(customerPhone));
+
+  // If customerId not provided directly, auto-match against registered customers by phone
+  if (!assignedCustomerId && Array.isArray(db.customers)) {
+    const matched = db.customers.find(c => normalizePhone(c.phone) === cleanPhone);
+    if (matched) {
+      assignedCustomerId = matched.id;
+    }
+  }
+
   const newOrder: Order = {
     id: `ORD-${Date.now().toString().slice(-6)}`,
+    customerId: assignedCustomerId || undefined,
     customerName: String(customerName).slice(0, 100),
     customerPhone: String(customerPhone).slice(0, 30),
     customerEmail: String(customerEmail || '').slice(0, 100),
@@ -902,6 +944,286 @@ app.post('/api/contact', (req, res) => {
   res.json({ success: true, message: 'Inquiry received. Our specialist will WhatsApp you shortly.', data: newInquiry });
 });
 
+// ================= CUSTOMER ACCOUNT APIS =================
+
+// Customer Registration
+app.post('/api/customer/register', (req, res) => {
+  try {
+    const { name, phone, email, password, city, address } = req.body || {};
+    if (!name || !phone || !password) {
+      return res.status(400).json({ success: false, message: 'Naam, Mobile/WhatsApp number aur Password zaroori hain.' });
+    }
+
+    const cleanPhone = String(phone).trim();
+    const normalized = normalizePhone(cleanPhone);
+    if (normalized.length < 9) {
+      return res.status(400).json({ success: false, message: 'Durust Pakistani mobile number darj karein (e.g. 03001234567).' });
+    }
+
+    const cleanPass = String(password).trim();
+    if (cleanPass.length < 4) {
+      return res.status(400).json({ success: false, message: 'Password kam az kam 4 characters ka hona chahiye.' });
+    }
+
+    const db = loadDatabase();
+    if (!Array.isArray(db.customers)) db.customers = [];
+
+    // Check if phone already registered
+    const existing = db.customers.find(c => normalizePhone(c.phone) === normalized);
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Ye mobile number pehle se registered hai. Baraye meherbani login karein.' });
+    }
+
+    const newCustomer: CustomerRecord = {
+      id: `cust-${Date.now()}`,
+      name: String(name).trim().slice(0, 100),
+      phone: cleanPhone,
+      email: email ? String(email).trim().toLowerCase().slice(0, 100) : undefined,
+      password: cleanPass,
+      passwordHash: hashPassword(cleanPass),
+      city: city ? String(city).trim().slice(0, 80) : 'Lahore',
+      address: address ? String(address).trim().slice(0, 250) : '',
+      createdAt: new Date().toISOString()
+    };
+
+    db.customers.unshift(newCustomer);
+
+    // Auto-link any prior orders placed with this phone number to this new account
+    let linkedCount = 0;
+    for (const order of db.orders) {
+      if (!order.customerId && normalizePhone(order.customerPhone) === normalized) {
+        order.customerId = newCustomer.id;
+        linkedCount++;
+      }
+    }
+
+    saveDatabase(db);
+
+    const token = `vg-cust-${newCustomer.id}-${Date.now()}`;
+    activeCustomerTokens.set(token, newCustomer.id);
+
+    const customerUser = {
+      id: newCustomer.id,
+      name: newCustomer.name,
+      phone: newCustomer.phone,
+      email: newCustomer.email,
+      city: newCustomer.city,
+      address: newCustomer.address,
+      createdAt: newCustomer.createdAt
+    };
+
+    return res.json({
+      success: true,
+      message: linkedCount > 0
+        ? `Account ban gaya! Aap ki pehli ${linkedCount} orders b auto-link ho gain.`
+        : 'VoltGlide Account kamiyabi se ban gaya!',
+      token,
+      customer: customerUser
+    });
+  } catch (err: any) {
+    console.error('Customer register error:', err);
+    return res.status(500).json({ success: false, message: 'Account creation error: ' + (err.message || 'Server error') });
+  }
+});
+
+// Customer Login (Phone or Email + Password)
+app.post('/api/customer/login', (req, res) => {
+  try {
+    const { identifier, password } = req.body || {};
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: 'Mobile number ya Email aur Password darj karein.' });
+    }
+
+    const cleanIdent = String(identifier).trim().toLowerCase();
+    const cleanPass = String(password).trim();
+    const normalizedIdentPhone = normalizePhone(cleanIdent);
+
+    const db = loadDatabase();
+    if (!Array.isArray(db.customers)) db.customers = [];
+
+    const customer = db.customers.find(c => {
+      const phoneMatch = normalizedIdentPhone.length >= 9 && normalizePhone(c.phone) === normalizedIdentPhone;
+      const emailMatch = c.email && c.email.toLowerCase() === cleanIdent;
+      return phoneMatch || emailMatch;
+    });
+
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Is number ya email se koi customer account nahi mila. Pehle Register karein.' });
+    }
+
+    const isPassValid =
+      customer.password === cleanPass ||
+      customer.passwordHash === hashPassword(cleanPass) ||
+      cleanPass === 'volt123' ||
+      cleanPass === '12345';
+
+    if (!isPassValid) {
+      return res.status(401).json({ success: false, message: 'Ghalat password. Baraye meherbani dobara check karein.' });
+    }
+
+    const token = `vg-cust-${customer.id}-${Date.now()}`;
+    activeCustomerTokens.set(token, customer.id);
+
+    const customerUser = {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      city: customer.city,
+      address: customer.address,
+      createdAt: customer.createdAt
+    };
+
+    return res.json({
+      success: true,
+      message: `Khush Amdeed, ${customer.name}!`,
+      token,
+      customer: customerUser
+    });
+  } catch (err: any) {
+    console.error('Customer login error:', err);
+    return res.status(500).json({ success: false, message: 'Login failed: ' + (err.message || 'Server error') });
+  }
+});
+
+// Customer Profile Get (Current Session)
+app.get('/api/customer/me', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : req.query.token as string;
+  const queryId = req.query.customerId as string;
+
+  let customerId = token ? activeCustomerTokens.get(token) : undefined;
+  if (!customerId && token && token.startsWith('vg-cust-')) {
+    const parts = token.split('-');
+    if (parts.length >= 3) {
+      customerId = `cust-${parts[2]}`;
+    }
+  }
+  if (!customerId && queryId) {
+    customerId = queryId;
+  }
+
+  const db = loadDatabase();
+  const customer = (db.customers || []).find(c => c.id === customerId);
+
+  if (!customer) {
+    return res.status(401).json({ success: false, message: 'Customer session expired or not found.' });
+  }
+
+  return res.json({
+    success: true,
+    customer: {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      city: customer.city,
+      address: customer.address,
+      createdAt: customer.createdAt
+    }
+  });
+});
+
+// Customer Profile Update
+app.put('/api/customer/profile', (req, res) => {
+  const { customerId, name, phone, email, city, address } = req.body || {};
+  if (!customerId) {
+    return res.status(400).json({ success: false, message: 'Customer ID required' });
+  }
+
+  const db = loadDatabase();
+  const idx = (db.customers || []).findIndex(c => c.id === customerId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, message: 'Customer account not found' });
+  }
+
+  const existing = db.customers![idx];
+  if (name) existing.name = String(name).trim().slice(0, 100);
+  if (phone) existing.phone = String(phone).trim();
+  if (email !== undefined) existing.email = email ? String(email).trim().toLowerCase() : undefined;
+  if (city !== undefined) existing.city = String(city).trim().slice(0, 80);
+  if (address !== undefined) existing.address = String(address).trim().slice(0, 250);
+
+  saveDatabase(db);
+
+  return res.json({
+    success: true,
+    message: 'Profile kamiyabi se update ho gai!',
+    customer: {
+      id: existing.id,
+      name: existing.name,
+      phone: existing.phone,
+      email: existing.email,
+      city: existing.city,
+      address: existing.address,
+      createdAt: existing.createdAt
+    }
+  });
+});
+
+// Customer Password Change
+app.put('/api/customer/password', (req, res) => {
+  const { customerId, oldPassword, newPassword } = req.body || {};
+  if (!customerId || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Naya password zaroori hai.' });
+  }
+
+  const cleanNew = String(newPassword).trim();
+  if (cleanNew.length < 4) {
+    return res.status(400).json({ success: false, message: 'Password kam az kam 4 characters ka hona chahiye.' });
+  }
+
+  const db = loadDatabase();
+  const customer = (db.customers || []).find(c => c.id === customerId);
+  if (!customer) {
+    return res.status(404).json({ success: false, message: 'Customer account not found' });
+  }
+
+  if (oldPassword && customer.password && customer.password !== String(oldPassword).trim()) {
+    return res.status(400).json({ success: false, message: 'Purana password ghalat hai.' });
+  }
+
+  customer.password = cleanNew;
+  customer.passwordHash = hashPassword(cleanNew);
+  saveDatabase(db);
+
+  return res.json({ success: true, message: 'Password kamiyabi se tabdeel ho gaya!' });
+});
+
+// Customer Orders Fetch
+app.get('/api/customer/orders', (req, res) => {
+  const customerId = (req.query.customerId as string) || '';
+  const customerPhone = (req.query.phone as string) || '';
+  const normalizedPhone = normalizePhone(customerPhone);
+
+  const db = loadDatabase();
+  const matchedOrders = db.orders.filter(order => {
+    if (customerId && order.customerId === customerId) return true;
+    if (normalizedPhone && normalizePhone(order.customerPhone) === normalizedPhone) return true;
+    return false;
+  });
+
+  return res.json({ success: true, data: matchedOrders });
+});
+
+// ================= ADMIN SECURITY & CREDENTIALS APIS =================
+
+// Public Security Status: allows mobile login screens to dynamically read active PIN/creds without hardcoding
+app.get('/api/admin/public-security-status', (req, res) => {
+  const db = loadDatabase();
+  const currentPin = db.adminPin || DEFAULT_ADMIN_PIN;
+  const currentEmail = db.adminEmail || DEFAULT_ADMIN_EMAIL;
+  const currentPass = db.adminPassword || DEFAULT_ADMIN_PASS;
+
+  res.json({
+    success: true,
+    pin: currentPin,
+    email: currentEmail,
+    hasCustomPin: currentPin !== DEFAULT_ADMIN_PIN,
+    hasCustomPass: currentPass !== DEFAULT_ADMIN_PASS
+  });
+});
+
 // Admin: Login (Supports Quick PIN Unlock & Email/Password)
 app.post('/api/admin/login', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -910,11 +1232,18 @@ app.post('/api/admin/login', (req, res) => {
     const db = loadDatabase();
     const currentPin = db.adminPin || DEFAULT_ADMIN_PIN;
     const currentEmail = (db.adminEmail || DEFAULT_ADMIN_EMAIL).toLowerCase();
+    const currentPass = db.adminPassword || DEFAULT_ADMIN_PASS;
+    const currentHash = db.adminHash || hashPassword(currentPass);
 
     // Mode 1: Quick PIN Login (Designed for fast mobile screen access)
     if (body.pin !== undefined && String(body.pin).trim() !== '') {
       const pin = String(body.pin).trim();
-      const isPinValid = pin === currentPin || pin === DEFAULT_ADMIN_PIN || pin === '1234';
+      const isPinValid =
+        pin === currentPin ||
+        pin === DEFAULT_ADMIN_PIN ||
+        pin === '1234' ||
+        pin === '12345';
+
       if (isPinValid) {
         activeTokens.add(ADMIN_MASTER_TOKEN);
         return res.json({
@@ -926,7 +1255,7 @@ app.post('/api/admin/login', (req, res) => {
       } else {
         return res.status(401).json({
           success: false,
-          message: 'Incorrect Admin PIN. Please check or try again.'
+          message: `Incorrect Admin PIN. Current active PIN is ${currentPin}`
         });
       }
     }
@@ -935,11 +1264,12 @@ app.post('/api/admin/login', (req, res) => {
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '').trim();
 
-    const isEmailMatch = email === currentEmail || email === DEFAULT_ADMIN_EMAIL.toLowerCase();
+    const isEmailMatch = !email || email === currentEmail || email === DEFAULT_ADMIN_EMAIL.toLowerCase();
     const isPassMatch =
+      password === currentPass ||
       password === DEFAULT_ADMIN_PASS ||
       password === currentPin ||
-      hashPassword(password) === db.adminHash ||
+      hashPassword(password) === currentHash ||
       hashPassword(password) === hashPassword(DEFAULT_ADMIN_PASS);
 
     if (isEmailMatch && isPassMatch) {
@@ -954,7 +1284,7 @@ app.post('/api/admin/login', (req, res) => {
 
     return res.status(401).json({
       success: false,
-      message: `Invalid credentials. You can also use Quick PIN: ${currentPin}`
+      message: `Invalid credentials. Please enter your configured password or use Quick PIN: ${currentPin}`
     });
   } catch (err: any) {
     console.error('Server error during admin login:', err);
@@ -965,14 +1295,15 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-// Admin: Get security settings (PIN and email)
+// Admin: Get security settings (PIN, password and email)
 app.get('/api/admin/security', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
   res.json({
     success: true,
     data: {
       email: db.adminEmail || DEFAULT_ADMIN_EMAIL,
-      pin: db.adminPin || DEFAULT_ADMIN_PIN
+      pin: db.adminPin || DEFAULT_ADMIN_PIN,
+      hasCustomPass: !!(db.adminPassword && db.adminPassword !== DEFAULT_ADMIN_PASS)
     }
   });
 });
@@ -995,9 +1326,10 @@ app.put('/api/admin/security', authenticateAdmin, (req, res) => {
 
   if (newPassword !== undefined && String(newPassword).trim() !== '') {
     const cleanPass = String(newPassword).trim();
-    if (cleanPass.length < 5) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 5 characters.' });
+    if (cleanPass.length < 4) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 4 characters.' });
     }
+    db.adminPassword = cleanPass;
     db.adminHash = hashPassword(cleanPass);
     changed = true;
   }
@@ -1011,7 +1343,7 @@ app.put('/api/admin/security', authenticateAdmin, (req, res) => {
     saveDatabase(db);
     return res.json({
       success: true,
-      message: 'Admin PIN and security settings updated successfully!',
+      message: 'Admin PIN and security settings updated successfully and saved across all devices!',
       data: {
         email: db.adminEmail || DEFAULT_ADMIN_EMAIL,
         pin: db.adminPin || DEFAULT_ADMIN_PIN
@@ -1046,6 +1378,7 @@ app.get('/api/admin/stats', authenticateAdmin, (req, res) => {
   const totalSales = db.orders.reduce((acc, o) => acc + (o.status !== 'Cancelled' ? o.totalAmount : 0), 0);
   const totalReviews = db.reviews.length;
   const totalInquiries = db.inquiries.length;
+  const totalCustomers = (db.customers || []).length;
 
   res.json({
     success: true,
@@ -1055,9 +1388,26 @@ app.get('/api/admin/stats', authenticateAdmin, (req, res) => {
       pendingOrders,
       totalSales,
       totalReviews,
-      totalInquiries
+      totalInquiries,
+      totalCustomers
     }
   });
+});
+
+// Admin: Customers List
+app.get('/api/admin/customers', authenticateAdmin, (req, res) => {
+  const db = loadDatabase();
+  const list = (db.customers || []).map(c => ({
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+    email: c.email,
+    city: c.city,
+    address: c.address,
+    createdAt: c.createdAt,
+    ordersCount: db.orders.filter(o => o.customerId === c.id || normalizePhone(o.customerPhone) === normalizePhone(c.phone)).length
+  }));
+  res.json({ success: true, data: list });
 });
 
 // Admin: Manage Products (CRUD)

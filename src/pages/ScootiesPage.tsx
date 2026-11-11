@@ -156,22 +156,22 @@ export const ScootiesPage: React.FC = () => {
           </div>
 
           {/* Category Filter */}
-          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-3">
+          <div className="surface-card rounded-2xl p-5 space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">Category</h4>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {(['All', 'Electric', 'Petrol', 'Sports', 'Kids', 'City'] as CategoryType[]).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between cursor-pointer ${
                     selectedCategory.toLowerCase() === cat.toLowerCase()
-                      ? 'bg-blue-600/30 text-cyan-300 border border-cyan-500/50 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <span>{cat === 'All' ? 'All Scooties' : cat}</span>
                   {selectedCategory.toLowerCase() === cat.toLowerCase() && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300"></span>
                   )}
                 </button>
               ))}
@@ -179,22 +179,22 @@ export const ScootiesPage: React.FC = () => {
           </div>
 
           {/* Brand Filter */}
-          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-3">
+          <div className="surface-card rounded-2xl p-5 space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">Brand</h4>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {brands.map((b) => (
                 <button
                   key={b}
                   onClick={() => setSelectedBrand(b)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between cursor-pointer ${
                     selectedBrand.toLowerCase() === b.toLowerCase()
-                      ? 'bg-blue-600/30 text-cyan-300 border border-cyan-500/50 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <span>{b === 'All' ? 'All Brands' : b}</span>
                   {selectedBrand.toLowerCase() === b.toLowerCase() && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300"></span>
                   )}
                 </button>
               ))}
@@ -202,10 +202,10 @@ export const ScootiesPage: React.FC = () => {
           </div>
 
           {/* Price Range Slider */}
-          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-3">
+          <div className="surface-card rounded-2xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Max Budget</h4>
-              <span className="text-xs font-extrabold text-cyan-300 font-mono">
+              <span className="text-xs font-bold text-white font-mono tabular-nums">
                 {formatPKR(maxPrice)}
               </span>
             </div>
@@ -216,31 +216,31 @@ export const ScootiesPage: React.FC = () => {
               step={10000}
               value={maxPrice}
               onChange={(e) => setMaxPrice(Number(e.target.value))}
-              className="w-full accent-cyan-400 bg-slate-800 cursor-pointer"
+              className="w-full accent-blue-600 bg-white/[0.1] cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono">
               <span>PKR 90k</span>
               <span>PKR 750k</span>
             </div>
           </div>
 
           {/* Availability Filter */}
-          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-3">
+          <div className="surface-card rounded-2xl p-5 space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">Availability</h4>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {['All', 'In Stock', 'Limited Stock', 'Pre-Order'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setSelectedAvailability(status)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between cursor-pointer ${
                     selectedAvailability.toLowerCase() === status.toLowerCase()
-                      ? 'bg-blue-600/30 text-cyan-300 border border-cyan-500/50 font-bold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <span>{status}</span>
                   {selectedAvailability.toLowerCase() === status.toLowerCase() && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-300"></span>
                   )}
                 </button>
               ))}
@@ -261,7 +261,7 @@ export const ScootiesPage: React.FC = () => {
         <main className="lg:col-span-3 space-y-6">
           
           {/* Controls Bar: Search & Sort */}
-          <div className="bg-[#0f172a] rounded-2xl p-4 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="surface-card rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
             
             {/* Search within page */}
             <div className="relative w-full sm:w-72">
@@ -270,9 +270,9 @@ export const ScootiesPage: React.FC = () => {
                 placeholder="Search by model or feature..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 text-xs text-white placeholder-slate-500 pl-9 pr-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-400"
+                className="w-full bg-white/[0.04] text-xs text-white placeholder-slate-400 pl-9 pr-3 py-2 rounded-xl border border-white/[0.08] focus:outline-none focus:border-cyan-400"
               />
-              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5 pointer-events-none" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
             </div>
 
             {/* Sort Selector */}
@@ -281,12 +281,12 @@ export const ScootiesPage: React.FC = () => {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-slate-900 text-slate-200 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
+                className="bg-white/[0.04] text-slate-200 border border-white/[0.08] rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
               >
-                <option value="featured">Featured First</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="rating">Highest Customer Rating</option>
+                <option value="featured" className="bg-[#0e121d]">Featured First</option>
+                <option value="price-low" className="bg-[#0e121d]">Price: Low to High</option>
+                <option value="price-high" className="bg-[#0e121d]">Price: High to Low</option>
+                <option value="rating" className="bg-[#0e121d]">Highest Customer Rating</option>
               </select>
             </div>
 

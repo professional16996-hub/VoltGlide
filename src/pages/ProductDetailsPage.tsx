@@ -209,17 +209,17 @@ export const ProductDetailsPage: React.FC = () => {
 
           {/* Value Badges */}
           <div className="grid grid-cols-3 gap-3 pt-2 text-center text-xs">
-            <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+            <div className="surface-card p-3 rounded-2xl">
               <Truck className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
               <p className="font-bold text-white text-[11px]">Free Home Delivery</p>
               <p className="text-[10px] text-slate-400">Doorstep across Pakistan</p>
             </div>
-            <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+            <div className="surface-card p-3 rounded-2xl">
               <ShieldCheck className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
               <p className="font-bold text-white text-[11px]">Official Warranty</p>
               <p className="text-[10px] text-slate-400">{product.specs.warranty}</p>
             </div>
-            <div className="bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+            <div className="surface-card p-3 rounded-2xl">
               <Coins className="w-4 h-4 text-amber-400 mx-auto mb-1" />
               <p className="font-bold text-white text-[11px]">Easy Installments</p>
               <p className="text-[10px] text-slate-400">0% Markup plans</p>
@@ -232,10 +232,10 @@ export const ProductDetailsPage: React.FC = () => {
           
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="bg-blue-600/20 text-cyan-300 text-xs font-bold px-2.5 py-0.5 rounded border border-cyan-500/30 uppercase tracking-wider">
+              <span className="bg-white/[0.05] text-cyan-300 text-xs font-semibold px-2.5 py-0.5 rounded border border-white/[0.08] uppercase tracking-wider">
                 {product.brand}
               </span>
-              <span className="text-slate-500">•</span>
+              <span className="text-slate-600">·</span>
               <span className="text-xs text-slate-400 font-semibold">{product.category} Scooty</span>
             </div>
 
@@ -255,19 +255,19 @@ export const ProductDetailsPage: React.FC = () => {
                   />
                 ))}
               </div>
-              <span className="text-sm font-bold text-white">{product.rating.toFixed(1)}</span>
+              <span className="text-sm font-bold text-white font-mono">{product.rating.toFixed(1)}</span>
               <span className="text-xs text-slate-400">({product.reviewCount} customer reviews)</span>
             </div>
           </div>
 
           {/* Pricing Box */}
-          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-2">
+          <div className="surface-card rounded-2xl p-5 space-y-2">
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-black text-cyan-300 font-heading">
+              <span className="text-3xl font-black text-white font-heading tabular-nums">
                 {formatPKR(product.price)}
               </span>
               {product.originalPrice && (
-                <span className="text-sm text-slate-500 line-through">
+                <span className="text-sm text-slate-500 line-through font-mono">
                   {formatPKR(product.originalPrice)}
                 </span>
               )}

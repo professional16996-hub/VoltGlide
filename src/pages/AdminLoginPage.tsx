@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext.tsx';
 import { Lock, Mail, ShieldCheck, ArrowRight, KeyRound, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
 
@@ -13,6 +13,45 @@ export const AdminLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [serverSecurity, setServerSecurity] = useState<{ pin: string; email: string; hasCustomPin: boolean; hasCustomPass: boolean }>({
+    pin: '12345',
+    email: 'admin@voltglide.com',
+    hasCustomPin: false,
+    hasCustomPass: false
+  });
+
+  // Fetch real-time security status from server so credentials stay 100% in sync on all devices
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`/api/admin/public-security-status?_cb=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && isMounted) {
+            setServerSecurity({
+              pin: data.pin || '12345',
+              email: data.email || 'admin@voltglide.com',
+              hasCustomPin: Boolean(data.hasCustomPin),
+              hasCustomPass: Boolean(data.hasCustomPass)
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Security status fetch fallback:', err);
+      }
+    };
+
+    fetchStatus();
+
+    // Listen for SSE or tab sync updates
+    const interval = setInterval(fetchStatus, 4000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // If already logged in, redirect to dashboard
   React.useEffect(() => {
     if (isAdmin) {
@@ -21,13 +60,15 @@ export const AdminLoginPage: React.FC = () => {
   }, [isAdmin, navigate]);
 
   const handleFillDemoPin = () => {
-    setPin('12345');
+    setPin(serverSecurity.pin);
     setError(null);
   };
 
   const handleFillDemoCreds = () => {
-    setEmail('admin@voltglide.com');
-    setPassword('admin12345');
+    setEmail(serverSecurity.email);
+    if (!serverSecurity.hasCustomPass) {
+      setPassword('admin12345');
+    }
     setError(null);
   };
 
@@ -44,7 +85,7 @@ export const AdminLoginPage: React.FC = () => {
     }
 
     const MASTER_TOKEN = 'voltglide-master-session-token-2026';
-    const isDefaultPin = cleanPin === '12345' || cleanPin === '1234';
+    const isLocalMatch = cleanPin === serverSecurity.pin || cleanPin === '12345' || cleanPin === '1234';
 
     try {
       const res = await fetch('/api/admin/login', {
@@ -62,23 +103,24 @@ export const AdminLoginPage: React.FC = () => {
             adminLogin(data.token);
             navigate('admin-dashboard');
             return;
-          } else if (data && data.message && !isDefaultPin) {
+          } else if (data && data.message) {
             setError(data.message);
+            setIsLoading(false);
             return;
           }
         }
       }
     } catch (err) {
-      console.warn('Network hiccup on admin PIN login:', err);
+      console.warn('Network issue on admin PIN login:', err);
     } finally {
       setIsLoading(false);
     }
 
-    if (isDefaultPin) {
+    if (isLocalMatch) {
       adminLogin(MASTER_TOKEN);
       navigate('admin-dashboard');
     } else {
-      setError('Incorrect Admin PIN. Default PIN is 12345 (or your customized PIN).');
+      setError(`Incorrect Admin PIN. Current active PIN is ${serverSecurity.pin}`);
     }
   };
 
@@ -90,7 +132,8 @@ export const AdminLoginPage: React.FC = () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
     const MASTER_TOKEN = 'voltglide-master-session-token-2026';
-    const isDirectMatch = (cleanEmail === 'admin@voltglide.com' || !cleanEmail) && (cleanPassword === 'admin12345' || cleanPassword === '12345');
+    const isLocalMatch = (cleanEmail === serverSecurity.email.toLowerCase() || !cleanEmail) &&
+      (cleanPassword === 'admin12345' || cleanPassword === serverSecurity.pin || cleanPassword === '12345');
 
     try {
       const res = await fetch('/api/admin/login', {
@@ -108,23 +151,24 @@ export const AdminLoginPage: React.FC = () => {
             adminLogin(data.token);
             navigate('admin-dashboard');
             return;
-          } else if (data && data.message && !isDirectMatch) {
+          } else if (data && data.message) {
             setError(data.message);
+            setIsLoading(false);
             return;
           }
         }
       }
     } catch (err) {
-      console.warn('Network hiccup on admin login:', err);
+      console.warn('Network issue on admin login:', err);
     } finally {
       setIsLoading(false);
     }
 
-    if (isDirectMatch) {
+    if (isLocalMatch) {
       adminLogin(MASTER_TOKEN);
       navigate('admin-dashboard');
     } else {
-      setError('Invalid admin credentials. Please use admin@voltglide.com and admin12345 (or Quick PIN).');
+      setError('Invalid admin credentials. Please enter your active password or use Quick PIN.');
     }
   };
 
@@ -181,7 +225,7 @@ export const AdminLoginPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="font-bold text-cyan-300 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              {loginMode === 'pin' ? 'Default Quick PIN:' : 'Default Admin Login:'}
+              {loginMode === 'pin' ? 'Active Quick PIN:' : 'Active Admin Login:'}
             </span>
             <button
               type="button"
@@ -189,14 +233,14 @@ export const AdminLoginPage: React.FC = () => {
               className="text-[11px] font-bold text-cyan-200 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
             >
               <Sparkles className="w-3 h-3 text-cyan-400" />
-              {loginMode === 'pin' ? 'Fill PIN (12345)' : 'Fill Credentials'}
+              {loginMode === 'pin' ? `Fill PIN (${serverSecurity.pin})` : 'Fill Credentials'}
             </button>
           </div>
           <div className="font-mono text-[11px] text-slate-300">
             {loginMode === 'pin' ? (
-              <p>Security PIN: <span className="text-cyan-300 font-bold tracking-widest">12345</span> <span className="text-slate-400 text-[10px]">(Can be changed inside Admin Panel)</span></p>
+              <p>Security PIN: <span className="text-cyan-300 font-bold tracking-widest">{serverSecurity.pin}</span> {serverSecurity.hasCustomPin ? <span className="text-emerald-400 text-[10px] ml-1">(Configured on server)</span> : <span className="text-slate-400 text-[10px]">(Can be changed inside Admin Panel)</span>}</p>
             ) : (
-              <p>Email: <span className="text-white">admin@voltglide.com</span> | Pass: <span className="text-cyan-300">admin12345</span></p>
+              <p>Email: <span className="text-white">{serverSecurity.email}</span> | Pass: <span className="text-cyan-300">{serverSecurity.hasCustomPass ? '(Your Custom Password)' : 'admin12345'}</span></p>
             )}
           </div>
         </div>

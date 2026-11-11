@@ -25,21 +25,33 @@ export const CartDrawer: React.FC = () => {
     cartTotal,
     cartCount,
     placeOrder,
-    navigate
+    navigate,
+    customer
   } = useApp();
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<{ id: string; total: number } | null>(null);
 
-  // Checkout form state
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [shippingAddress, setShippingAddress] = useState('');
-  const [city, setCity] = useState('Lahore');
+  // Checkout form state (pre-filled from customer if logged in)
+  const [customerName, setCustomerName] = useState(customer?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(customer?.phone || '');
+  const [customerEmail, setCustomerEmail] = useState(customer?.email || '');
+  const [shippingAddress, setShippingAddress] = useState(customer?.address || '');
+  const [city, setCity] = useState(customer?.city || 'Lahore');
   const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'Bank Transfer / Raast' | 'Online Card'>('Cash on Delivery');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync if customer logs in
+  React.useEffect(() => {
+    if (customer) {
+      if (customer.name) setCustomerName(customer.name);
+      if (customer.phone) setCustomerPhone(customer.phone);
+      if (customer.email) setCustomerEmail(customer.email);
+      if (customer.address) setShippingAddress(customer.address);
+      if (customer.city) setCity(customer.city);
+    }
+  }, [customer]);
 
   if (!isCartOpen) return null;
 
@@ -61,6 +73,7 @@ export const CartDrawer: React.FC = () => {
     }));
 
     const result = await placeOrder({
+      customerId: customer?.id,
       customerName,
       customerPhone,
       customerEmail,
@@ -94,10 +107,10 @@ export const CartDrawer: React.FC = () => {
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-[#0a0f1d] border-l border-slate-800 shadow-2xl flex flex-col text-slate-100">
+        <div className="w-screen max-w-md bg-[#090b14] border-l border-white/[0.08] shadow-2xl flex flex-col text-slate-100">
           
           {/* Header */}
-          <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+          <div className="p-5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.02]">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30">
                 <ShoppingBag className="w-5 h-5" />
@@ -153,9 +166,20 @@ export const CartDrawer: React.FC = () => {
                 onClick={() => {
                   setCompletedOrder(null);
                   setIsCartOpen(false);
+                  navigate('customer-account');
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-colors cursor-pointer"
+              >
+                📦 View Order in My Customer Account
+              </button>
+
+              <button
+                onClick={() => {
+                  setCompletedOrder(null);
+                  setIsCartOpen(false);
                   navigate('home');
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
               >
                 Continue Browsing Scooties
               </button>
@@ -163,6 +187,26 @@ export const CartDrawer: React.FC = () => {
           ) : isCheckingOut ? (
             /* Checkout Form */
             <form onSubmit={handleCheckoutSubmit} className="p-6 flex-1 overflow-y-auto space-y-4 text-xs">
+              {customer ? (
+                <div className="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-[11px] text-cyan-200 flex items-center justify-between">
+                  <span>Logged in as <strong>{customer.name}</strong></span>
+                  <span className="text-[10px] text-cyan-400">Auto-linking to Account</span>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/20 text-[11px] text-slate-300 flex items-center justify-between">
+                  <span>Have an account?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCartOpen(false);
+                      navigate('customer-account');
+                    }}
+                    className="text-cyan-300 font-bold hover:underline cursor-pointer"
+                  >
+                    Sign In to Auto-Fill
+                  </button>
+                </div>
+              )}
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
                 <input

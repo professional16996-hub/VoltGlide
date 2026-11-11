@@ -9,6 +9,8 @@
     touch-action: pan-y;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior-x: none;
+    background-color: #080a11;
+    color: #e2e8f0;
   }
 
   #root {
@@ -17,6 +19,7 @@
     overflow-x: hidden !important;
     position: relative;
     min-height: 100vh;
+    background-color: #080a11;
   }
 
   body {
@@ -25,37 +28,49 @@
   
   h1, h2, h3, h4, h5, h6, .font-heading {
     font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
-/* Custom electric glow & animations */
-.glow-electric {
-  box-shadow: 0 0 25px -5px rgba(0, 102, 255, 0.45);
+/* Subtle luxury automotive background mesh & glow */
+.bg-canvas {
+  background-color: #080a11;
+  background-image: 
+    radial-gradient(at 50% 0%, rgba(30, 58, 138, 0.18) 0px, transparent 55%),
+    radial-gradient(at 100% 40%, rgba(14, 116, 144, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 80%, rgba(30, 58, 138, 0.08) 0px, transparent 50%);
 }
 
-.glow-electric-strong {
-  box-shadow: 0 0 35px -5px rgba(0, 240, 255, 0.6);
+.surface-card {
+  background-color: #0e121d;
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.glow-border {
+.surface-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.surface-card-hover:hover {
   border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.6), 0 0 20px -5px rgba(14, 165, 233, 0.15);
+  transform: translateY(-2px);
 }
 
-/* Custom scrollbar */
+/* Sleek scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #080a11;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #1e2638;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #0284c7;
+  background: #2563eb;
 }
+

@@ -23,82 +23,65 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
   const discount = calculateDiscountPercent(product.originalPrice, product.price);
 
-  // Status badge styling
-  const getAvailabilityBadge = () => {
-    switch (product.availability) {
-      case 'In Stock':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-      case 'Limited Stock':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-      case 'Pre-Order':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
-      default:
-        return 'bg-rose-500/20 text-rose-400 border-rose-500/40';
-    }
-  };
-
   return (
-    <div className="group bg-[#0f172a] rounded-2xl border border-slate-800 hover:border-blue-500/50 shadow-xl hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 flex flex-col overflow-hidden">
+    <div className="group surface-card surface-card-hover rounded-2xl flex flex-col overflow-hidden">
       
       {/* Product Image & Badges */}
-      <div className="relative aspect-[4/3] bg-slate-950 overflow-hidden cursor-pointer" onClick={() => navigate('product', product.id)}>
+      <div 
+        className="relative aspect-[4/3] bg-[#090c14] overflow-hidden cursor-pointer" 
+        onClick={() => navigate('product', product.id)}
+      >
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 select-none"
           loading="lazy"
           onError={(e) => {
-            // fallback image if broken
             (e.target as HTMLImageElement).src = '/images/electric_scooty_blue_1793645309587.jpg';
           }}
         />
 
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-black/40 opacity-70"></div>
+        {/* Subtle Scrim for Depth */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0e121d] via-transparent to-black/30 opacity-70 pointer-events-none"></div>
 
-        {/* Top Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
-          <span className="bg-blue-600/90 backdrop-blur-sm text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow uppercase tracking-wider flex items-center gap-1">
+        {/* Top Unboxed Metadata */}
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          <div className="bg-[#080a11]/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] text-[10px] font-bold text-slate-200 tracking-wider uppercase flex items-center gap-1.5 shadow">
             {product.category === 'Electric' ? (
-              <Zap className="w-3 h-3 text-cyan-300 fill-cyan-300" />
+              <Zap className="w-3 h-3 text-cyan-400 fill-cyan-400" />
             ) : (
-              <Fuel className="w-3 h-3 text-amber-300" />
+              <Fuel className="w-3 h-3 text-amber-400" />
             )}
-            {product.category}
-          </span>
+            <span>{product.brand} · {product.category}</span>
+          </div>
+
           {discount && (
-            <span className="bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded shadow">
+            <span className="bg-rose-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow backdrop-blur-sm">
               {discount}% OFF
             </span>
           )}
         </div>
 
-        {/* Video Available Badge */}
+        {/* Video Available Indicator */}
         {(Boolean(product.videoUrl) || product.gallery?.some((m) => m.endsWith('.mp4') || m.endsWith('.webm') || m.startsWith('data:video/'))) && (
           <div className="absolute top-3 right-3">
-            <span className="bg-black/80 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded-lg shadow backdrop-blur-sm">
-              🎬 Video
+            <span className="bg-black/80 border border-white/[0.1] text-cyan-300 text-[10px] font-medium px-2 py-0.5 rounded-md shadow backdrop-blur-sm">
+              Video Tour
             </span>
           </div>
         )}
 
-        {/* Availability Badge */}
+        {/* Status Line */}
         <div className="absolute bottom-3 left-3">
-          <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border backdrop-blur-md ${getAvailabilityBadge()}`}>
-            ● {product.availability}
-          </span>
-        </div>
-
-        {/* Brand label */}
-        <div className="absolute bottom-3 right-3">
-          <span className="text-[10px] uppercase font-bold text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded backdrop-blur-sm">
-            {product.brand}
+          <span className="text-[11px] font-medium text-emerald-400 bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>{product.availability}</span>
           </span>
         </div>
       </div>
 
       {/* Card Content */}
-      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
         
         <div>
           {/* Rating */}
@@ -107,38 +90,38 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               {[...Array(5)].map((_, i) => (
                 <Star
                   key={i}
-                  className={`w-3.5 h-3.5 ${
+                  className={`w-3 h-3 ${
                     i < Math.floor(product.rating)
                       ? 'fill-amber-400 text-amber-400'
-                      : 'text-slate-600'
+                      : 'text-slate-700'
                   }`}
                 />
               ))}
             </div>
-            <span className="text-xs font-bold text-slate-300">{product.rating.toFixed(1)}</span>
-            <span className="text-xs text-slate-500">({product.reviewCount} reviews)</span>
+            <span className="text-xs font-semibold text-slate-300 font-mono">{product.rating.toFixed(1)}</span>
+            <span className="text-[11px] text-slate-500">({product.reviewCount})</span>
           </div>
 
           {/* Product Title */}
           <h3
             onClick={() => navigate('product', product.id)}
-            className="text-lg font-bold text-white hover:text-cyan-400 transition-colors line-clamp-1 cursor-pointer font-heading"
+            className="text-base sm:text-lg font-bold text-white hover:text-cyan-300 transition-colors line-clamp-1 cursor-pointer font-heading"
           >
             {product.name}
           </h3>
 
           {/* Short description */}
-          <p className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
             {product.shortDescription}
           </p>
 
-          {/* Key Specs Pills */}
-          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px]">
-            <div className="flex items-center gap-1.5 text-slate-300 bg-slate-900/60 p-1.5 rounded-lg border border-slate-800">
+          {/* Precision Spec Chips */}
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/[0.06] text-[11px]">
+            <div className="flex items-center gap-1.5 text-slate-300 bg-white/[0.03] p-1.5 rounded-lg border border-white/[0.05]">
               <Gauge className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
               <span className="truncate">{product.specs.maxSpeed}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-300 bg-slate-900/60 p-1.5 rounded-lg border border-slate-800">
+            <div className="flex items-center gap-1.5 text-slate-300 bg-white/[0.03] p-1.5 rounded-lg border border-white/[0.05]">
               {product.category === 'Electric' ? (
                 <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
               ) : (
@@ -150,57 +133,57 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         {/* Price & Action Buttons */}
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-1 border-t border-white/[0.06]">
           
           {/* Price display */}
           <div className="flex items-baseline justify-between">
             <div>
-              <span className="text-xl font-extrabold text-cyan-300 tracking-tight font-heading">
+              <span className="text-lg sm:text-xl font-black text-white tracking-tight font-heading tabular-nums">
                 {formatPKR(product.price)}
               </span>
               {product.originalPrice && (
-                <span className="text-xs text-slate-500 line-through ml-2">
+                <span className="text-xs text-slate-500 line-through ml-2 font-mono">
                   {formatPKR(product.originalPrice)}
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-slate-400">Cash / Installment</span>
+            <span className="text-[10px] text-slate-400 font-medium">Official Warranty</span>
           </div>
 
-          {/* Primary Action Buttons */}
+          {/* Action Row */}
           <div className="grid grid-cols-2 gap-2">
-            
-            {/* View Details Button */}
+            {/* View Details */}
             <button
               onClick={() => navigate('product', product.id)}
-              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors cursor-pointer"
+              className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-slate-200 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/[0.08] transition-colors cursor-pointer"
             >
               <Eye className="w-3.5 h-3.5 text-cyan-400" />
-              View Details
+              <span>Details</span>
             </button>
 
             {/* Quick Add to Cart */}
             <button
               onClick={() => addToCart(product, 1)}
-              className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 transition-colors cursor-pointer"
+              className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/25 transition-colors cursor-pointer"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              Add to Cart
+              <span>Add to Cart</span>
             </button>
           </div>
 
-          {/* WHATSAPP ORDER BUTTON - MANDATORY REQUIREMENT */}
+          {/* Direct WhatsApp Order */}
           <a
             href={getProductOrderWhatsAppUrl(product.name, product.price)}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-2.5 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full py-2 px-3 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
           >
-            <WhatsAppIconSVG className="w-4 h-4 text-white" />
-            WhatsApp Order
+            <WhatsAppIconSVG className="w-3.5 h-3.5 text-white" />
+            <span>Order on WhatsApp</span>
           </a>
         </div>
       </div>
     </div>
   );
 };
+

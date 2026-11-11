@@ -364,7 +364,8 @@
       "paymentMethod": "Cash on Delivery",
       "notes": "Please call before delivery. Free helmet requested.",
       "status": "Confirmed",
-      "createdAt": "2026-10-31T18:53:14.911Z"
+      "createdAt": "2026-10-31T18:53:14.911Z",
+      "customerId": "cust-1794420805618"
     },
     {
       "id": "ORD-2026-882",
@@ -530,5 +531,18 @@
     }
   },
   "adminPin": "12345",
-  "adminEmail": "admin@voltglide.com"
+  "adminEmail": "admin@voltglide.com",
+  "customers": [
+    {
+      "id": "cust-1794420805618",
+      "name": "Test User",
+      "phone": "03001234567",
+      "password": "password123",
+      "passwordHash": "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f",
+      "city": "Lahore",
+      "address": "Gulberg III",
+      "createdAt": "2026-11-11T18:13:25.618Z"
+    }
+  ],
+  "adminPassword": "admin12345"
 }

@@ -19,6 +19,7 @@ import { ContactPage } from './pages/ContactPage.tsx';
 import { ReviewsPage } from './pages/ReviewsPage.tsx';
 import { AdminLoginPage } from './pages/AdminLoginPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
+import { CustomerAccountPage } from './pages/CustomerAccountPage.tsx';
 
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
@@ -41,6 +42,9 @@ const MainContent: React.FC = () => {
         return <ReviewsPage />;
       case 'wishlist':
         return <ScootiesPage />;
+      case 'customer-account':
+      case 'account':
+        return <CustomerAccountPage />;
       case 'admin-login':
         return <AdminLoginPage />;
       case 'admin-dashboard':
@@ -51,7 +55,7 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#070b14] text-slate-100 font-sans w-full max-w-full overflow-x-hidden relative">
+    <div className="min-h-screen flex flex-col bg-canvas text-slate-100 font-sans w-full max-w-full overflow-x-hidden relative selection:bg-blue-600 selection:text-white">
       
       {/* Navbar with brand, links, cart, and top-right three dots menu for Admin Login */}
       <Navbar />

@@ -16,7 +16,8 @@ import {
   Fuel,
   BatteryCharging,
   Layers,
-  ChevronRight
+  ChevronRight,
+  MapPin
 } from 'lucide-react';
 import { CategoryType } from '../types.ts';
 
@@ -26,8 +27,8 @@ export const HomePage: React.FC = () => {
 
   const phone = settings?.phone || '0321-0424424';
   const whatsappNum = settings?.whatsappNumber || '03210424424';
-  const heroBadge = settings?.heroBadge || 'Official Volt Glide Dealership • 2026 Electric & Petrol Scooties';
-  const heroTagline = settings?.heroTagline || 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.';
+  const heroBadge = settings?.heroBadge || 'Official Volt Glide Motors · 2026 Electric & Petrol Mobility';
+  const heroTagline = settings?.heroTagline || 'Experience the future of urban commuting with zero petrol expense and precision Japanese & Italian engineering.';
 
   // Filter products by active tab
   const filteredProducts = activeTab === 'All'
@@ -35,21 +36,20 @@ export const HomePage: React.FC = () => {
     : products.filter(p => p.category.toLowerCase() === activeTab.toLowerCase());
 
   return (
-    <div className="space-y-16 w-full max-w-full overflow-x-hidden">
+    <div className="space-y-16 sm:space-y-20 w-full max-w-full overflow-x-hidden">
       
       {/* 1. FRONT / HERO SHOWCASE SECTION */}
-      <section className="relative pt-4 sm:pt-6 pb-12 border-b border-slate-800/80 bg-gradient-to-b from-[#0a0f1d] via-[#080d19] to-[#070b14]">
+      <section className="relative pt-4 sm:pt-6 pb-12 border-b border-white/[0.06]">
         
-        {/* Subtle Ambient Glow Background Orbs */}
-        <div className="absolute top-10 left-1/3 w-[500px] h-[300px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
-        <div className="absolute top-24 right-1/4 w-[450px] h-[300px] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+        {/* Subtle Ambient Radial Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           
-          {/* Top Dealership Pill Badge */}
+          {/* Top Dealership Trust Bar */}
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-900/50 border border-cyan-400/30 text-cyan-300 text-xs font-semibold backdrop-blur-md shadow-md">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-slate-300 text-xs font-medium backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
               <span>{heroBadge}</span>
             </div>
             
@@ -57,10 +57,10 @@ export const HomePage: React.FC = () => {
               href={getWhatsAppUrl('Hello VoltGlide! I would like to inquire about booking a scooty.', whatsappNum)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-emerald-400 font-semibold transition-colors"
             >
-              <WhatsAppIconSVG className="w-3.5 h-3.5" />
-              <span>WhatsApp Helpline: {phone}</span>
+              <WhatsAppIconSVG className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Official Helpline: {phone}</span>
             </a>
           </div>
 
@@ -70,7 +70,7 @@ export const HomePage: React.FC = () => {
               setSelectedCategory('All');
               navigate('scooties');
             }}
-            className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-cyan-500/40 ring-1 ring-cyan-400/20 shadow-[0_12px_60px_-15px_rgba(6,182,212,0.35)] bg-slate-950 cursor-pointer group transition-all duration-500 hover:border-cyan-400/70 hover:shadow-[0_16px_75px_-12px_rgba(6,182,212,0.45)]"
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.12] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] bg-[#0a0d16] cursor-pointer group transition-all duration-500 hover:border-cyan-400/50"
           >
             {/* High-Resolution Banner Image */}
             <img
@@ -81,18 +81,18 @@ export const HomePage: React.FC = () => {
             />
 
             {/* Subtle Gradient vignette on bottom corners for polish */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none opacity-60"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none opacity-60"></div>
 
             {/* Floating Action Badge on bottom corner */}
-            <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 bg-slate-900/90 hover:bg-blue-600 text-white text-xs sm:text-sm font-bold px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-xl backdrop-blur-md border border-cyan-400/40 flex items-center gap-2 transition-all shadow-xl">
-              <Zap className="w-4 h-4 text-cyan-300 fill-cyan-300" />
+            <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 bg-[#080a11]/90 hover:bg-blue-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl backdrop-blur-md border border-white/[0.15] flex items-center gap-2 transition-all shadow-xl">
+              <Zap className="w-4 h-4 text-cyan-400 fill-cyan-400" />
               <span>Explore All Scooties</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
 
           {/* INTRO, HEADLINE & ACTIONS BAR */}
-          <div className="pt-2 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-slate-800/80 pb-8">
+          <div className="pt-2 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-white/[0.06] pb-8">
             <div className="max-w-3xl space-y-3">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight font-heading">
                 Ride Your Dreams,<br />
@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
                   setSelectedCategory('All');
                   navigate('scooties');
                 }}
-                className="flex-1 sm:flex-none py-3.5 px-7 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all cursor-pointer"
+                className="flex-1 sm:flex-none py-3.5 px-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all cursor-pointer"
               >
                 <span>Shop Now</span>
                 <ArrowRight className="w-4 h-4" />
@@ -123,60 +123,60 @@ export const HomePage: React.FC = () => {
                   setSelectedCategory('Electric');
                   navigate('scooties');
                 }}
-                className="flex-1 sm:flex-none py-3.5 px-6 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 hover:border-cyan-400 font-bold text-xs sm:text-sm backdrop-blur-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="flex-1 sm:flex-none py-3.5 px-6 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-slate-200 hover:text-white border border-white/[0.08] hover:border-cyan-400/50 font-semibold text-xs sm:text-sm backdrop-blur-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <Zap className="w-4 h-4 text-cyan-400" />
-                <span>Explore Scooties</span>
+                <span>Electric EV Range</span>
               </button>
 
               <a
                 href={getWhatsAppUrl('Hello VoltGlide! I want to order/inquire about a scooty from the website.')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto py-3.5 px-5 rounded-xl bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/40 text-emerald-300 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all"
+                className="w-full sm:w-auto py-3.5 px-5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all"
               >
-                <WhatsAppIconSVG className="w-4 h-4 text-emerald-400" />
+                <WhatsAppIconSVG className="w-4 h-4 text-white" />
                 <span>Order on WhatsApp</span>
               </a>
             </div>
           </div>
 
-          {/* 4 CORE VALUE METRICS (Mirroring the 4 icons in the banner: High Performance, Superior Safety, Long Mileage, Modern Design) */}
+          {/* 4 CORE VALUE METRICS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-left">
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+            <div className="p-4 sm:p-5 rounded-2xl surface-card surface-card-hover">
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs mb-1.5">
                 <Zap className="w-4 h-4 fill-cyan-400/20" />
                 <span>High Performance</span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-white font-heading">0% Petrol</p>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">0 Liters</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Instant electric torque, near-zero sound & vibration</p>
             </div>
 
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+            <div className="p-4 sm:p-5 rounded-2xl surface-card surface-card-hover">
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs mb-1.5">
                 <ShieldCheck className="w-4 h-4" />
                 <span>Superior Safety</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-white font-heading">3 Years</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Official warranty on battery, electric motor & chassis</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Official warranty on battery, motor & frame</p>
             </div>
 
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
+            <div className="p-4 sm:p-5 rounded-2xl surface-card surface-card-hover">
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs mb-1.5">
                 <BatteryCharging className="w-4 h-4" />
                 <span>Long Mileage</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-white font-heading">120 KM</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Fast charge on standard 220V home wall socket</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Fast charge on standard 220V home socket</p>
             </div>
 
-            <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a]/80 border border-slate-800/90 hover:border-cyan-500/40 transition-colors">
-              <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs mb-1.5">
-                <Layers className="w-4 h-4" />
-                <span>Modern Design</span>
+            <div className="p-4 sm:p-5 rounded-2xl surface-card surface-card-hover">
+              <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs mb-1.5">
+                <MapPin className="w-4 h-4" />
+                <span>Modern Delivery</span>
               </div>
               <p className="text-xl sm:text-2xl font-black text-white font-heading">Free Delivery</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Doorstep doorstep delivery across Lahore, KHI, ISB</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Doorstep delivery across Lahore, Karachi & Islamabad</p>
             </div>
           </div>
 
@@ -189,32 +189,32 @@ export const HomePage: React.FC = () => {
           {banners.map((banner) => (
             <div
               key={banner.id}
-              className={`p-6 rounded-2xl bg-gradient-to-br ${banner.bgGradient} border border-slate-800 hover:border-cyan-500/50 shadow-xl transition-all duration-300 flex flex-col justify-between group`}
+              className="p-6 rounded-2xl surface-card surface-card-hover flex flex-col justify-between group"
             >
               {banner.image && (
-                <div className="relative w-full h-32 rounded-xl overflow-hidden mb-3 border border-white/10 bg-black/40">
-                  <img src={banner.image} alt={banner.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div className="relative w-full h-32 rounded-xl overflow-hidden mb-3 border border-white/[0.08] bg-black/40">
+                  <img src={banner.image} alt={banner.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 select-none" />
                 </div>
               )}
               <div className="space-y-3">
-                <span className="inline-block px-2.5 py-1 rounded-md bg-blue-500/20 text-cyan-300 font-extrabold text-[10px] tracking-wider uppercase border border-cyan-500/30">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-white/[0.05] text-cyan-300 font-bold text-[10px] tracking-wider uppercase border border-white/[0.08]">
                   {banner.tag}
                 </span>
-                <h3 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors font-heading">
+                <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-cyan-300 transition-colors font-heading">
                   {banner.title}
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs text-slate-400 leading-relaxed">
                   {banner.subtitle}
                 </p>
               </div>
 
-              <div className="pt-5 mt-4 border-t border-white/10">
+              <div className="pt-5 mt-4 border-t border-white/[0.06]">
                 {banner.ctaLink.startsWith('http') ? (
                   <a
                     href={banner.ctaLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-xs font-bold text-cyan-300 hover:text-white transition-colors"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-300 hover:text-white transition-colors"
                   >
                     {banner.ctaText}
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -227,7 +227,7 @@ export const HomePage: React.FC = () => {
                       }
                       navigate('scooties');
                     }}
-                    className="inline-flex items-center gap-2 text-xs font-bold text-cyan-300 hover:text-white transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-300 hover:text-white transition-colors cursor-pointer"
                   >
                     {banner.ctaText}
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -245,8 +245,8 @@ export const HomePage: React.FC = () => {
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-2">
-              <Sparkles className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Showroom Showcase</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight font-heading">
@@ -257,20 +257,18 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          {/* Category Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {/* Precision Filter Segmented Switchboard */}
+          <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-xl border border-white/[0.08] overflow-x-auto scrollbar-none">
             {(['All', 'Electric', 'Petrol', 'Sports', 'City', 'Kids'] as CategoryType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                   activeTab === tab
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 border border-cyan-400'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {tab === 'Electric' && '⚡ '}
-                {tab === 'Petrol' && '⛽ '}
                 {tab === 'All' ? 'All Models' : tab}
               </button>
             ))}
@@ -285,7 +283,7 @@ export const HomePage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 px-4 bg-slate-900/60 rounded-3xl border border-slate-800 space-y-3">
+          <div className="text-center py-12 px-4 surface-card rounded-2xl space-y-3">
             <p className="text-white font-bold text-base">No Scooties currently visible in "{activeTab}"</p>
             <p className="text-slate-400 text-xs">Tap below to display all verified demo scooties.</p>
             <button
@@ -293,7 +291,7 @@ export const HomePage: React.FC = () => {
                 setActiveTab('All');
                 restoreDemoProducts();
               }}
-              className="py-2.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-xs shadow-lg cursor-pointer"
+              className="py-2.5 px-6 rounded-xl bg-blue-600 text-white font-semibold text-xs shadow-md cursor-pointer"
             >
               Show All Demo Scooties
             </button>
@@ -301,15 +299,15 @@ export const HomePage: React.FC = () => {
         )}
 
         {/* View All Button */}
-        <div className="text-center pt-6">
+        <div className="text-center pt-4">
           <button
             onClick={() => {
               setSelectedCategory('All');
               navigate('scooties');
             }}
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs border border-slate-700 hover:border-cyan-400 transition-all cursor-pointer shadow-lg"
+            className="inline-flex items-center gap-2 px-7 py-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white font-semibold text-xs border border-white/[0.08] hover:border-cyan-400/50 transition-all cursor-pointer shadow-md"
           >
-            <span>View All {products.length} Scooties & Compare</span>
+            <span>View All {products.length} Scooties & Specifications</span>
             <ChevronRight className="w-4 h-4 text-cyan-400" />
           </button>
         </div>
@@ -317,9 +315,9 @@ export const HomePage: React.FC = () => {
 
       {/* 4. ELECTRIC VS PETROL COMPARISON HIGHLIGHT */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-[#0d1527] via-[#090e1a] to-[#0d1527] border border-blue-500/30 rounded-3xl p-8 sm:p-12 relative overflow-hidden shadow-2xl">
+        <div className="surface-card rounded-3xl p-8 sm:p-12 relative overflow-hidden shadow-2xl">
           <div className="max-w-3xl space-y-4">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-cyan-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
               COMMUTER SAVINGS CALCULATOR
             </span>
             <h3 className="text-2xl sm:text-3xl font-black text-white font-heading">
@@ -330,38 +328,38 @@ export const HomePage: React.FC = () => {
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-              <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800">
-                <div className="flex items-center gap-2 text-rose-400 font-bold text-sm mb-2">
+              <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06]">
+                <div className="flex items-center gap-2 text-rose-400 font-semibold text-sm mb-2">
                   <Fuel className="w-4 h-4" />
                   Regular Petrol Scooty
                 </div>
                 <ul className="text-xs text-slate-400 space-y-1.5">
                   <li>• Monthly fuel expense: ~PKR 20,000 - 25,000</li>
-                  <li>• Regular oil filter & tuning charges</li>
-                  <li>• Noise, vibration & tailpipe emissions</li>
+                  <li>• Regular engine oil & spark plug replacement</li>
+                  <li>• Vibration, loud engine noise & exhaust emissions</li>
                 </ul>
               </div>
 
-              <div className="bg-blue-950/40 p-4 rounded-xl border border-cyan-500/40 shadow-inner">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm mb-2">
+              <div className="bg-blue-950/20 p-4 rounded-xl border border-cyan-500/30">
+                <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm mb-2">
                   <BatteryCharging className="w-4 h-4" />
                   VoltGlide Electric Scooty
                 </div>
                 <ul className="text-xs text-slate-300 space-y-1.5">
                   <li>• Monthly electricity expense: <strong className="text-emerald-400">~PKR 1,500</strong></li>
-                  <li>• Zero engine oil changes or spark plug repairs</li>
-                  <li>• 100% silent, vibration-free, smooth cruise</li>
+                  <li>• Zero engine oil changes or spark plug maintenance</li>
+                  <li>• 100% silent, smooth instant torque with keyless start</li>
                 </ul>
               </div>
             </div>
 
-            <div className="pt-4 flex flex-wrap gap-4 items-center">
+            <div className="pt-4 flex flex-wrap gap-3 items-center">
               <button
                 onClick={() => {
                   setSelectedCategory('Electric');
                   navigate('scooties');
                 }}
-                className="py-3 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold text-xs shadow-lg shadow-cyan-500/30 flex items-center gap-2 cursor-pointer"
+                className="py-3 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/25 flex items-center gap-2 cursor-pointer"
               >
                 Explore EV Models
                 <ArrowRight className="w-4 h-4" />
@@ -371,10 +369,10 @@ export const HomePage: React.FC = () => {
                 href={getWhatsAppUrl('Hello VoltGlide! Can you calculate my monthly savings if I switch from petrol bike to an electric scooty?')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="py-3 px-6 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs flex items-center gap-2 shadow"
+                className="py-3 px-6 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-xs flex items-center gap-2 shadow-sm"
               >
                 <WhatsAppIconSVG className="w-4 h-4 text-white" />
-                Ask On WhatsApp (0321-0424424)
+                <span>Calculate on WhatsApp ({phone})</span>
               </a>
             </div>
           </div>
@@ -385,8 +383,8 @@ export const HomePage: React.FC = () => {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-2">
-              <Star className="w-4 h-4 fill-amber-400" />
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-1.5">
+              <Star className="w-3.5 h-3.5 fill-amber-400" />
               <span>Real Customer Feedback</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-heading">
@@ -399,7 +397,7 @@ export const HomePage: React.FC = () => {
 
           <button
             onClick={() => navigate('reviews')}
-            className="text-xs font-bold text-cyan-400 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-xs font-semibold text-cyan-400 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <span>View All Reviews & Submit Yours</span>
             <ChevronRight className="w-4 h-4" />
@@ -410,7 +408,7 @@ export const HomePage: React.FC = () => {
           {reviews.slice(0, 3).map((review) => (
             <div
               key={review.id}
-              className="bg-[#0f172a] rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between space-y-4"
+              className="surface-card surface-card-hover rounded-2xl p-6 flex flex-col justify-between space-y-4"
             >
               <div className="space-y-3">
                 {/* Stars */}
@@ -418,7 +416,7 @@ export const HomePage: React.FC = () => {
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
-                      className={`w-4 h-4 ${
+                      className={`w-3.5 h-3.5 ${
                         i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'
                       }`}
                     />
@@ -430,13 +428,13 @@ export const HomePage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between">
+              <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-white">{review.customerName}</h4>
                   <span className="text-[10px] text-slate-400">{review.city}</span>
                 </div>
                 {review.productName && (
-                  <span className="text-[10px] font-semibold text-cyan-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-900">
+                  <span className="text-[10px] font-medium text-cyan-300 bg-white/[0.04] px-2 py-0.5 rounded border border-white/[0.08]">
                     {review.productName}
                   </span>
                 )}
@@ -448,7 +446,7 @@ export const HomePage: React.FC = () => {
 
       {/* 6. CALL TO ACTION SHOWROOM BANNER */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-950 to-black p-8 sm:p-12 text-center text-white border border-blue-500/40 relative overflow-hidden shadow-2xl">
+        <div className="rounded-3xl surface-card p-8 sm:p-12 text-center text-white border border-white/[0.1] relative overflow-hidden shadow-2xl">
           <div className="relative z-10 max-w-2xl mx-auto space-y-4">
             <h3 className="text-2xl sm:text-3xl font-black font-heading">
               Ready to Experience the Ride?
@@ -456,21 +454,21 @@ export const HomePage: React.FC = () => {
             <p className="text-xs sm:text-sm text-slate-300">
               Book a free test ride at our Lahore, Karachi, or Islamabad showrooms, or place an order via WhatsApp with free doorstep delivery and cash on delivery!
             </p>
-            <div className="pt-2 flex flex-wrap justify-center gap-4">
+            <div className="pt-2 flex flex-wrap justify-center gap-3">
               <a
                 href={getWhatsAppUrl('Hello VoltGlide! I want to book a free test ride at your showroom.')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="py-3.5 px-8 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-sm shadow-xl flex items-center gap-2"
+                className="py-3.5 px-7 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2"
               >
-                <WhatsAppIconSVG className="w-5 h-5 text-white" />
-                Book Test Ride on WhatsApp
+                <WhatsAppIconSVG className="w-4 h-4 text-white" />
+                <span>Book Test Ride on WhatsApp</span>
               </a>
               <button
                 onClick={() => navigate('contact')}
-                className="py-3.5 px-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm border border-slate-700"
+                className="py-3.5 px-7 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-white font-semibold text-xs sm:text-sm border border-white/[0.08] cursor-pointer"
               >
-                View Showrooms & Contact
+                Showroom Locations & Timing
               </button>
             </div>
           </div>

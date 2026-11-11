@@ -15,13 +15,13 @@ export const Footer: React.FC = () => {
   const socials = settings?.socialLinks || {};
 
   return (
-    <footer className="bg-[#070b14] border-t border-slate-800 text-slate-400 text-xs mt-16 w-full max-w-full overflow-x-hidden">
+    <footer className="bg-[#080a11] border-t border-white/[0.08] text-slate-400 text-xs mt-16 w-full max-w-full overflow-x-hidden">
       
       {/* Top Value Banner */}
-      <div className="border-b border-slate-800/80 bg-slate-900/30">
+      <div className="border-b border-white/[0.06] bg-white/[0.02]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+            <div className="w-10 h-10 rounded-xl bg-white/[0.04] text-cyan-400 flex items-center justify-center border border-white/[0.08]">
               <Zap className="w-5 h-5" />
             </div>
             <div>
@@ -31,7 +31,7 @@ export const Footer: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+            <div className="w-10 h-10 rounded-xl bg-white/[0.04] text-cyan-400 flex items-center justify-center border border-white/[0.08]">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>

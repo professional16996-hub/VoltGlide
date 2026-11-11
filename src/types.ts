@@ -51,8 +51,19 @@ export interface OrderItem {
 
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
 
+export interface CustomerUser {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  address?: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
+  customerId?: string;
   customerName: string;
   customerPhone: string;
   customerEmail: string;

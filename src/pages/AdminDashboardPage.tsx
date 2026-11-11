@@ -46,7 +46,8 @@ import {
   ShieldCheck,
   Key,
   Download,
-  RefreshCw
+  RefreshCw,
+  Users
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
@@ -69,7 +70,7 @@ export const AdminDashboardPage: React.FC = () => {
     refreshSettings
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'customers' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
 
   // Dynamic Site Settings Form State
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(settings);
@@ -110,6 +111,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [adminBanners, setAdminBanners] = useState<Banner[]>(banners);
   const [adminReviews, setAdminReviews] = useState<Review[]>(reviews);
   const [adminInquiries, setAdminInquiries] = useState<ContactInquiry[]>([]);
+  const [adminCustomers, setAdminCustomers] = useState<{ id: string; name: string; phone: string; email?: string; city?: string; address?: string; createdAt: string; ordersCount: number }[]>([]);
 
   // Search in products
   const [productSearch, setProductSearch] = useState('');
@@ -421,6 +423,25 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [adminToken]);
 
+  const loadAdminCustomers = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch(`/api/admin/customers?_cb=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Cache-Control': 'no-cache, no-store'
+        }
+      });
+      const data = await safeJson(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        setAdminCustomers(data.data);
+      }
+    } catch (err) {
+      console.warn('Could not load customers in admin:', err);
+    }
+  }, [adminToken]);
+
   const loadSecurity = useCallback(async () => {
     if (!adminToken) return;
     try {
@@ -450,8 +471,9 @@ export const AdminDashboardPage: React.FC = () => {
     loadAdminBanners();
     loadAdminReviews();
     loadAdminInquiries();
+    loadAdminCustomers();
     loadSecurity();
-  }, [adminToken, loadStats, loadAdminProducts, loadAdminOrders, loadAdminBanners, loadAdminReviews, loadAdminInquiries, loadSecurity]);
+  }, [adminToken, loadStats, loadAdminProducts, loadAdminOrders, loadAdminBanners, loadAdminReviews, loadAdminInquiries, loadAdminCustomers, loadSecurity]);
 
   useEffect(() => {
     refreshAllAdminData();
@@ -1022,6 +1044,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
           { id: 'products', label: `Scooties (${adminProducts.length})`, icon: Package },
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
+          { id: 'customers', label: `Customers (${adminCustomers.length})`, icon: Users },
           { id: 'inquiries', label: `Customer Leads (${adminInquiries.length})`, icon: Mail },
           { id: 'banners', label: `Banners (${adminBanners.length})`, icon: ImageIcon },
           { id: 'reviews', label: `Reviews (${adminReviews.length})`, icon: MessageSquare },
@@ -2054,6 +2077,101 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
           </div>
         </form>
+      )}
+
+      {/* TAB: REGISTERED CUSTOMERS */}
+      {activeTab === 'customers' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0f172a] p-5 rounded-3xl border border-slate-800 shadow-xl">
+            <div>
+              <h3 className="font-bold text-white text-base font-heading">
+                Registered Customer Accounts ({adminCustomers.length})
+              </h3>
+              <p className="text-xs text-slate-400">
+                Tamam registered customers, un k mobile numbers, addresses aur order records.
+              </p>
+            </div>
+            <button
+              onClick={loadAdminCustomers}
+              className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Refresh Customers</span>
+            </button>
+          </div>
+
+          {adminCustomers.length === 0 ? (
+            <div className="bg-[#0f172a] rounded-3xl p-12 text-center border border-slate-800 space-y-3">
+              <Users className="w-10 h-10 text-slate-600 mx-auto" />
+              <h4 className="text-white font-bold text-base">No Customers Registered Yet</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Jab b koi customer website pe naya account banaye ga ya checkout kare ga, un ki details yahan foran show hon gi.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {adminCustomers.map((cust) => {
+                const waUrl = `https://wa.me/${cleanWhatsAppNumber(cust.phone)}?text=${encodeURIComponent(
+                  `Hello ${cust.name}! Assalam-o-Alaikum from VoltGlide Scooty Hub Pakistan. How can we assist you today?`
+                )}`;
+
+                return (
+                  <div key={cust.id} className="bg-[#0f172a] rounded-3xl p-5 border border-slate-800 shadow-lg space-y-3 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 p-0.5 flex-shrink-0">
+                            <div className="w-full h-full bg-[#0a0f1d] rounded-[9px] flex items-center justify-center font-bold text-cyan-400">
+                              {cust.name.charAt(0).toUpperCase()}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-sm">{cust.name}</h4>
+                            <span className="text-[10px] text-slate-500 font-mono">ID: {cust.id}</span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold">
+                          {cust.ordersCount} Orders
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-xs text-slate-300 pt-1">
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                          <span className="font-mono text-white font-semibold">{cust.phone}</span>
+                        </div>
+                        {cust.email && (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <Mail className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+                            <span className="truncate">{cust.email}</span>
+                          </div>
+                        )}
+                        {(cust.city || cust.address) && (
+                          <div className="flex items-start gap-2 text-slate-400 pt-0.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                            <span className="line-clamp-2">{cust.address ? `${cust.address}, ` : ''}{cust.city}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2">
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-colors cursor-pointer"
+                      >
+                        <WhatsAppIconSVG className="w-3.5 h-3.5 fill-white" />
+                        <span>Chat on WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* TAB 7: CUSTOMER INQUIRIES & LEADS */}
