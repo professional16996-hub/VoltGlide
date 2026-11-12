@@ -18,9 +18,12 @@ export const WhatsAppIconSVG: React.FC<{ className?: string }> = ({ className = 
 );
 
 export const FloatingWhatsApp: React.FC = () => {
-  const { settings } = useApp();
+  const { settings, isCartOpen } = useApp();
   const [isOpen, setIsOpen] = useState(false);
   const [customMsg, setCustomMsg] = useState('');
+
+  // Never overlap with Cart Drawer or Checkout
+  if (isCartOpen) return null;
 
   const phone = settings?.phone || '0321-0424424';
   const whatsappNum = settings?.whatsappNumber || '03210424424';
@@ -41,7 +44,7 @@ export const FloatingWhatsApp: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 flex flex-col items-start max-w-[calc(100vw-2rem)]">
+    <div className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-30 flex flex-col items-start max-w-[calc(100vw-2rem)]">
       {/* Quick Chat Popup Card */}
       {isOpen && (
         <div className="mb-3 w-[calc(100vw-2rem)] sm:w-96 max-w-sm bg-[#0f172a] rounded-2xl shadow-2xl border border-emerald-500/30 overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-5 duration-200">

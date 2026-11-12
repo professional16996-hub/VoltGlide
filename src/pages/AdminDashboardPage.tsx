@@ -352,12 +352,24 @@ export const AdminDashboardPage: React.FC = () => {
         }
       });
       const data = await safeJson(res);
-      if (data && data.success && Array.isArray(data.data)) {
+      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
         setAdminOrders(data.data);
+        return;
       }
     } catch (err) {
       console.warn('Safe loadAdminOrders fallback:', err);
     }
+
+    // Fallback for Netlify/Offline: Load orders saved in localStorage
+    try {
+      const local = localStorage.getItem('voltglide_orders');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAdminOrders(parsed);
+        }
+      }
+    } catch {}
   }, [adminToken]);
 
   const loadAdminBanners = useCallback(async () => {

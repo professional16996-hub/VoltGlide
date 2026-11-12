@@ -344,6 +344,29 @@
   ],
   "orders": [
     {
+      "id": "ORD-601434",
+      "customerId": "cust-1794420805618",
+      "customerName": "Hamza Khan",
+      "customerPhone": "03001234567",
+      "customerEmail": "",
+      "shippingAddress": "Street 5, Gulberg III",
+      "city": "Lahore",
+      "items": [
+        {
+          "productId": "scooty-01",
+          "productName": "VoltGlide E-Pulse Pro",
+          "price": 215000,
+          "quantity": 1,
+          "image": "/images/electric_scooty_blue_1793645309587.jpg"
+        }
+      ],
+      "totalAmount": 215000,
+      "paymentMethod": "Cash on Delivery",
+      "notes": "",
+      "status": "Pending",
+      "createdAt": "2026-11-12T17:30:01.434Z"
+    },
+    {
       "id": "ORD-2026-881",
       "customerName": "Kamran Siddiqui",
       "customerPhone": "03001234567",
