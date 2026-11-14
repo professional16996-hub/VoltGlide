@@ -212,17 +212,22 @@ export const Footer: React.FC = () => {
                 </button>
               </li>
               <li>
-                <button onClick={() => navigate('about')} className="hover:text-cyan-400 transition-colors">
+                <button onClick={() => navigate('analysis')} className="hover:text-cyan-400 transition-colors cursor-pointer">
+                  4-Type Analysis & ROI
+                </button>
+              </li>
+              <li>
+                <button onClick={() => navigate('about')} className="hover:text-cyan-400 transition-colors cursor-pointer">
                   About Our Brand
                 </button>
               </li>
               <li>
-                <button onClick={() => navigate('reviews')} className="hover:text-cyan-400 transition-colors">
+                <button onClick={() => navigate('reviews')} className="hover:text-cyan-400 transition-colors cursor-pointer">
                   Customer Reviews
                 </button>
               </li>
               <li>
-                <button onClick={() => navigate('contact')} className="hover:text-cyan-400 transition-colors">
+                <button onClick={() => navigate('contact')} className="hover:text-cyan-400 transition-colors cursor-pointer">
                   Contact Us
                 </button>
               </li>

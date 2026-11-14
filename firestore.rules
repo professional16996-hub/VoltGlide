@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isHex64(val) {
+      return val is string && val.size() == 64 && val.matches('^[a-f0-9]{64}$');
+    }
+
+    function isValidAdminSecurity(data) {
+      return data.keys().hasAll(['email', 'pinHash', 'passwordHash', 'lastProofHash', 'updatedAt'])
+        && data.keys().hasOnly(['email', 'pinHash', 'passwordHash', 'lastProofHash', 'updatedAt'])
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && isHex64(data.pinHash)
+        && isHex64(data.passwordHash)
+        && isHex64(data.lastProofHash)
+        && data.updatedAt == request.time;
+    }
+
+    function isValidSiteConfig(data) {
+      return data.keys().hasAll(['phone', 'whatsappNumber', 'email', 'updatedAt'])
+        && data.keys().hasOnly([
+          'phone', 'whatsappNumber', 'whatsappMessage', 'email', 'workingHours',
+          'socialLinks', 'announcementBar', 'heroBadge', 'heroTagline',
+          'deliveryNotice', 'footerText', 'showrooms', 'updatedAt'
+        ])
+        && data.phone is string && data.phone.size() >= 3 && data.phone.size() <= 40
+        && data.whatsappNumber is string && data.whatsappNumber.size() >= 3 && data.whatsappNumber.size() <= 40
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+        && (!('whatsappMessage' in data) || (data.whatsappMessage is string && data.whatsappMessage.size() <= 300))
+        && (!('workingHours' in data) || (data.workingHours is string && data.workingHours.size() <= 200))
+        && (!('heroBadge' in data) || (data.heroBadge is string && data.heroBadge.size() <= 160))
+        && (!('heroTagline' in data) || (data.heroTagline is string && data.heroTagline.size() <= 400))
+        && (!('deliveryNotice' in data) || (data.deliveryNotice is string && data.deliveryNotice.size() <= 400))
+        && (!('footerText' in data) || (data.footerText is string && data.footerText.size() <= 500))
+        && (!('socialLinks' in data) || data.socialLinks is map)
+        && (!('announcementBar' in data) || data.announcementBar is map)
+        && (!('showrooms' in data) || (data.showrooms is list && data.showrooms.size() <= 12))
+        && data.updatedAt == request.time;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['id', 'name', 'category', 'brand', 'price', 'availability', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'name', 'category', 'brand', 'price', 'originalPrice', 'image',
+          'gallery', 'videoUrl', 'shortDescription', 'description', 'features',
+          'specs', 'availability', 'rating', 'reviewCount', 'featured', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+        && data.category in ['Electric', 'Petrol', 'Sports', 'Kids', 'City']
+        && data.brand is string && data.brand.size() >= 1 && data.brand.size() <= 80
+        && data.price is number && data.price >= 0
+        && data.availability in ['In Stock', 'Limited Stock', 'Pre-Order', 'Out of Stock']
+        && (!('shortDescription' in data) || (data.shortDescription is string && data.shortDescription.size() <= 500))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 4000))
+        && (!('image' in data) || (data.image is string && data.image.size() <= 900000))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
+        && data.updatedAt == request.time;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'id', 'customerName', 'customerPhone', 'city', 'shippingAddress',
+          'totalAmount', 'paymentMethod', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'customerId', 'customerName', 'customerPhone', 'customerEmail',
+          'shippingAddress', 'city', 'items', 'totalAmount', 'paymentMethod',
+          'notes', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
+        && data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 40
+        && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
+        && data.shippingAddress is string && data.shippingAddress.size() >= 2 && data.shippingAddress.size() <= 400
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.paymentMethod in ['Cash on Delivery', 'Bank Transfer / Raast', 'Online Card']
+        && data.status in ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled']
+        && data.createdAt is string && data.createdAt.size() <= 60
+        && data.updatedAt == request.time;
+    }
+
+    // Boot connection test document
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Synchronized Hashed Admin Credentials (no plaintext passwords or PINs stored)
+    match /app_config/{configId} {
+      allow get: if isValidId(configId);
+      allow create: if isValidId(configId)
+        && configId == 'admin_security'
+        && isValidAdminSecurity(incoming());
+      allow update: if isValidId(configId)
+        && configId == 'admin_security'
+        && isValidAdminSecurity(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'pinHash', 'passwordHash', 'lastProofHash', 'updatedAt'])
+        && (
+          incoming().lastProofHash == existing().pinHash ||
+          incoming().lastProofHash == existing().passwordHash
+        );
+    }
+
+    // Dealership Site Settings (Phone, WhatsApp, Social Links, Announcement)
+    match /site_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if true;
+      allow create, update: if isValidId(settingId) && isValidSiteConfig(incoming());
+    }
+
+    // Showroom Scooty Catalog
+    match /products/{productId} {
+      allow get: if isValidId(productId);
+      allow list: if true;
+      allow create, update: if isValidId(productId) && isValidProduct(incoming());
+      allow delete: if isValidId(productId);
+    }
+
+    // Customer Orders
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if true;
+      allow create: if isValidId(orderId) && isValidOrder(incoming());
+      allow update: if isValidId(orderId)
+        && isValidOrder(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+    }
+  }
+}

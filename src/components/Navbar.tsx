@@ -11,7 +11,8 @@ import {
   Lock,
   LogOut,
   LayoutDashboard,
-  User
+  User,
+  BarChart3
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -106,7 +107,7 @@ export const Navbar: React.FC = () => {
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-7 text-xs font-semibold tracking-wide uppercase">
+          <nav className="hidden lg:flex items-center gap-5 xl:gap-7 text-xs font-semibold tracking-wide uppercase">
             <button
               onClick={() => navigate('home')}
               className={`transition-colors py-1 cursor-pointer ${
@@ -149,8 +150,18 @@ export const Navbar: React.FC = () => {
               Petrol / Gas
             </button>
             <button
+              onClick={() => navigate('analysis')}
+              className={`transition-colors py-1 whitespace-nowrap shrink-0 cursor-pointer ${
+                currentRoute === 'analysis'
+                  ? 'text-white border-b border-cyan-400'
+                  : 'text-slate-400 hover:text-cyan-300'
+              }`}
+            >
+              Analysis
+            </button>
+            <button
               onClick={() => navigate('about')}
-              className={`transition-colors py-1 cursor-pointer ${
+              className={`transition-colors py-1 whitespace-nowrap shrink-0 cursor-pointer ${
                 currentRoute === 'about'
                   ? 'text-white border-b border-cyan-400'
                   : 'text-slate-400 hover:text-white'
@@ -160,7 +171,7 @@ export const Navbar: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('reviews')}
-              className={`transition-colors py-1 cursor-pointer ${
+              className={`transition-colors py-1 whitespace-nowrap shrink-0 cursor-pointer ${
                 currentRoute === 'reviews'
                   ? 'text-white border-b border-cyan-400'
                   : 'text-slate-400 hover:text-white'
@@ -170,7 +181,7 @@ export const Navbar: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('contact')}
-              className={`transition-colors py-1 cursor-pointer ${
+              className={`transition-colors py-1 whitespace-nowrap shrink-0 cursor-pointer ${
                 currentRoute === 'contact'
                   ? 'text-white border-b border-cyan-400'
                   : 'text-slate-400 hover:text-white'
@@ -310,6 +321,17 @@ export const Navbar: React.FC = () => {
                     >
                       <span className="w-2 h-2 rounded-full bg-amber-400 ml-1 mr-1"></span>
                       Petrol Scooters
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        navigate('analysis');
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-cyan-300 hover:text-white hover:bg-blue-600/20 flex items-center gap-3 transition-colors cursor-pointer"
+                    >
+                      <BarChart3 className="w-4 h-4 text-cyan-400" />
+                      4-Type Scooty Analysis
                     </button>
 
                     <button

@@ -1208,17 +1208,14 @@ app.get('/api/customer/orders', (req, res) => {
 
 // ================= ADMIN SECURITY & CREDENTIALS APIS =================
 
-// Public Security Status: allows mobile login screens to dynamically read active PIN/creds without hardcoding
+// Public Security Status: returns configuration flags only without exposing PIN or email
 app.get('/api/admin/public-security-status', (req, res) => {
   const db = loadDatabase();
   const currentPin = db.adminPin || DEFAULT_ADMIN_PIN;
-  const currentEmail = db.adminEmail || DEFAULT_ADMIN_EMAIL;
   const currentPass = db.adminPassword || DEFAULT_ADMIN_PASS;
 
   res.json({
     success: true,
-    pin: currentPin,
-    email: currentEmail,
     hasCustomPin: currentPin !== DEFAULT_ADMIN_PIN,
     hasCustomPass: currentPass !== DEFAULT_ADMIN_PASS
   });
@@ -1238,11 +1235,7 @@ app.post('/api/admin/login', (req, res) => {
     // Mode 1: Quick PIN Login (Designed for fast mobile screen access)
     if (body.pin !== undefined && String(body.pin).trim() !== '') {
       const pin = String(body.pin).trim();
-      const isPinValid =
-        pin === currentPin ||
-        pin === DEFAULT_ADMIN_PIN ||
-        pin === '1234' ||
-        pin === '12345';
+      const isPinValid = pin === currentPin;
 
       if (isPinValid) {
         activeTokens.add(ADMIN_MASTER_TOKEN);
@@ -1255,7 +1248,7 @@ app.post('/api/admin/login', (req, res) => {
       } else {
         return res.status(401).json({
           success: false,
-          message: `Incorrect Admin PIN. Current active PIN is ${currentPin}`
+          message: 'Incorrect Admin PIN. Please try again.'
         });
       }
     }
@@ -1264,13 +1257,11 @@ app.post('/api/admin/login', (req, res) => {
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '').trim();
 
-    const isEmailMatch = !email || email === currentEmail || email === DEFAULT_ADMIN_EMAIL.toLowerCase();
+    const isEmailMatch = email === currentEmail;
     const isPassMatch =
       password === currentPass ||
-      password === DEFAULT_ADMIN_PASS ||
       password === currentPin ||
-      hashPassword(password) === currentHash ||
-      hashPassword(password) === hashPassword(DEFAULT_ADMIN_PASS);
+      hashPassword(password) === currentHash;
 
     if (isEmailMatch && isPassMatch) {
       activeTokens.add(ADMIN_MASTER_TOKEN);
@@ -1284,7 +1275,7 @@ app.post('/api/admin/login', (req, res) => {
 
     return res.status(401).json({
       success: false,
-      message: `Invalid credentials. Please enter your configured password or use Quick PIN: ${currentPin}`
+      message: 'Invalid admin email or password.'
     });
   } catch (err: any) {
     console.error('Server error during admin login:', err);

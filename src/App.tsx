@@ -20,6 +20,7 @@ import { ReviewsPage } from './pages/ReviewsPage.tsx';
 import { AdminLoginPage } from './pages/AdminLoginPage.tsx';
 import { AdminDashboardPage } from './pages/AdminDashboardPage.tsx';
 import { CustomerAccountPage } from './pages/CustomerAccountPage.tsx';
+import { AnalysisPage } from './pages/AnalysisPage.tsx';
 
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
@@ -34,6 +35,8 @@ const MainContent: React.FC = () => {
         return <ScootiesPage />;
       case 'product':
         return <ProductDetailsPage />;
+      case 'analysis':
+        return <AnalysisPage />;
       case 'about':
         return <AboutPage />;
       case 'contact':

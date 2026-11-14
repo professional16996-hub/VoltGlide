@@ -47,10 +47,19 @@ import {
   Key,
   Download,
   RefreshCw,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
+import { AdminAnalyticsPanel } from '../components/analysis/AdminAnalyticsPanel.tsx';
+import {
+  updateCloudAdminSecurity,
+  ensureCloudAdminSecurity,
+  subscribeToCloudAdminSecurity,
+  fetchCloudOrders,
+  updateCloudOrderStatus
+} from '../firebase.ts';
 
 export const AdminDashboardPage: React.FC = () => {
   const {
@@ -70,7 +79,7 @@ export const AdminDashboardPage: React.FC = () => {
     refreshSettings
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders' | 'customers' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'products' | 'orders' | 'customers' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
 
   // Dynamic Site Settings Form State
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(settings);
@@ -79,7 +88,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Security & PIN Lock Form State
   const [securityData, setSecurityData] = useState<{ email: string; pin: string }>({
     email: 'admin@voltglide.com',
-    pin: '12345'
+    pin: ''
   });
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -87,7 +96,6 @@ export const AdminDashboardPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newEmail, setNewEmail] = useState('admin@voltglide.com');
   const [isSavingSecurity, setIsSavingSecurity] = useState(false);
-  const [showSecurityPin, setShowSecurityPin] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -343,6 +351,17 @@ export const AdminDashboardPage: React.FC = () => {
 
   const loadAdminOrders = useCallback(async () => {
     if (!adminToken) return;
+    const mergedMap = new Map<string, Order>();
+
+    // 1. Load orders from Cloud Firestore (works on Netlify and across devices)
+    try {
+      const cloudOrders = await fetchCloudOrders();
+      cloudOrders.forEach((o) => {
+        if (o && o.id) mergedMap.set(o.id, o);
+      });
+    } catch {}
+
+    // 2. Merge orders from local Express API if available
     try {
       const res = await fetch(`/api/admin/orders?_cb=${Date.now()}`, {
         cache: 'no-store',
@@ -351,25 +370,48 @@ export const AdminDashboardPage: React.FC = () => {
           'Cache-Control': 'no-cache, no-store'
         }
       });
-      const data = await safeJson(res);
-      if (data && data.success && Array.isArray(data.data) && data.data.length > 0) {
-        setAdminOrders(data.data);
-        return;
+      const data = await safeJson<Order[]>(res);
+      if (data && data.success && Array.isArray(data.data)) {
+        data.data.forEach((o) => {
+          if (o && o.id && !mergedMap.has(o.id)) {
+            mergedMap.set(o.id, o);
+          }
+        });
       }
     } catch (err) {
-      console.warn('Safe loadAdminOrders fallback:', err);
+      console.warn('Safe loadAdminOrders server fallback:', err);
     }
 
-    // Fallback for Netlify/Offline: Load orders saved in localStorage
+    // 3. Fallback merge from localStorage
     try {
       const local = localStorage.getItem('voltglide_orders');
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAdminOrders(parsed);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((o: Order) => {
+            if (o && o.id && !mergedMap.has(o.id)) {
+              mergedMap.set(o.id, o);
+            }
+          });
         }
       }
     } catch {}
+
+    const combined = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    if (combined.length > 0) {
+      setAdminOrders(combined);
+      setStats((prev) => ({
+        ...prev,
+        totalOrders: combined.length,
+        pendingOrders: combined.filter((o) => o.status === 'Pending').length,
+        totalSales: combined
+          .filter((o) => o.status !== 'Cancelled')
+          .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+      }));
+    }
   }, [adminToken]);
 
   const loadAdminBanners = useCallback(async () => {
@@ -457,6 +499,14 @@ export const AdminDashboardPage: React.FC = () => {
   const loadSecurity = useCallback(async () => {
     if (!adminToken) return;
     try {
+      const cloudSec = await ensureCloudAdminSecurity();
+      if (cloudSec?.email) {
+        setSecurityData((prev) => ({ ...prev, email: cloudSec.email }));
+        setNewEmail(cloudSec.email);
+      }
+    } catch {}
+
+    try {
       const res = await fetch(`/api/admin/security?_cb=${Date.now()}`, {
         cache: 'no-store',
         headers: {
@@ -490,6 +540,14 @@ export const AdminDashboardPage: React.FC = () => {
   useEffect(() => {
     refreshAllAdminData();
 
+    // Real-time listener for cross-device Admin Security changes
+    const unsubscribeCloudSec = subscribeToCloudAdminSecurity((cloudDoc) => {
+      if (cloudDoc?.email) {
+        setSecurityData((prev) => ({ ...prev, email: cloudDoc.email }));
+        setNewEmail((prev) => (prev === securityData.email || !prev ? cloudDoc.email : prev));
+      }
+    });
+
     // Auto-sync admin panel every 5 seconds or when screen is focused
     const syncInterval = setInterval(() => {
       if (!document.hidden && adminToken) {
@@ -507,6 +565,7 @@ export const AdminDashboardPage: React.FC = () => {
     document.addEventListener('visibilitychange', handleFocus);
 
     return () => {
+      unsubscribeCloudSec();
       clearInterval(syncInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
@@ -679,8 +738,10 @@ export const AdminDashboardPage: React.FC = () => {
         body: JSON.stringify({ status })
       });
       await safeJson(res);
+      await updateCloudOrderStatus(orderId, status);
       await Promise.all([loadAdminOrders(), loadStats()]);
     } catch (err) {
+      await updateCloudOrderStatus(orderId, status).catch(() => {});
       console.warn('Order status sync warning:', err);
     }
   };
@@ -886,6 +947,35 @@ export const AdminDashboardPage: React.FC = () => {
     }
 
     setIsSavingSecurity(true);
+    const updatedPin = newPin ? newPin.trim() : securityData.pin;
+    const updatedEmail = newEmail ? newEmail.trim() : securityData.email;
+    const updatedPass = newPassword ? newPassword.trim() : undefined;
+
+    let cloudSynced = false;
+    try {
+      const cloudResult = await updateCloudAdminSecurity({
+        newPin: newPin ? newPin.trim() : undefined,
+        newPassword: updatedPass,
+        newEmail: newEmail ? newEmail.trim() : undefined
+      });
+      if (cloudResult.success) {
+        cloudSynced = true;
+      }
+    } catch (cloudErr) {
+      console.warn('Cloud security sync warning:', cloudErr);
+    }
+
+    // Always sync localStorage fallback too
+    try {
+      const existing = JSON.parse(localStorage.getItem('voltglide_admin_security') || '{}');
+      localStorage.setItem('voltglide_admin_security', JSON.stringify({
+        pin: updatedPin || existing.pin,
+        email: updatedEmail,
+        password: updatedPass || existing.password
+      }));
+      setSecurityData({ email: updatedEmail, pin: '' });
+    } catch {}
+
     try {
       const res = await fetch('/api/admin/security', {
         method: 'PUT',
@@ -895,28 +985,43 @@ export const AdminDashboardPage: React.FC = () => {
         },
         body: JSON.stringify({
           newPin: newPin ? newPin.trim() : undefined,
-          newPassword: newPassword ? newPassword.trim() : undefined,
+          newPassword: updatedPass,
           newEmail: newEmail ? newEmail.trim() : undefined
         })
       });
       const data = await safeJson(res);
       if (data && data.success) {
-        showToast('Admin Security PIN & credentials updated successfully!', 'success');
         if (data.data) {
           setSecurityData(data.data);
         }
+        showToast(
+          cloudSynced
+            ? 'Password & PIN updated & synced across ALL devices!'
+            : 'Admin Security PIN & credentials updated!',
+          'success'
+        );
         setNewPin('');
         setConfirmPin('');
         setNewPassword('');
         setConfirmPassword('');
-      } else {
-        showToast(data?.message || 'Failed to update security settings', 'error');
+        return;
       }
     } catch {
-      showToast('Server connection issue while updating security', 'error');
+      // Static hosting (Netlify) falls through cleanly after Cloud Firestore sync
     } finally {
       setIsSavingSecurity(false);
     }
+
+    showToast(
+      cloudSynced
+        ? 'Password & PIN updated & synced across ALL devices!'
+        : 'Admin Security PIN & credentials updated locally!',
+      cloudSynced ? 'success' : 'info'
+    );
+    setNewPin('');
+    setConfirmPin('');
+    setNewPassword('');
+    setConfirmPassword('');
   };
 
   // INQUIRY ACTIONS
@@ -947,7 +1052,7 @@ export const AdminDashboardPage: React.FC = () => {
         reviews: adminReviews,
         inquiries: adminInquiries,
         settings: settingsForm,
-        security: { email: securityData.email, pin: securityData.pin }
+        security: { email: securityData.email }
       };
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -992,9 +1097,9 @@ export const AdminDashboardPage: React.FC = () => {
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">
                 LIVE PERSISTENT DB
               </span>
-              <span className="bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
+              <span className="bg-cyan-500/20 text-cyan-300 text-[10px] font-bold px-2 py-0.5 rounded border border-cyan-500/30 flex items-center gap-1">
                 <Lock className="w-2.5 h-2.5" />
-                PIN: {securityData.pin || '12345'}
+                PIN Protected
               </span>
             </div>
             <p className="text-xs text-slate-400">
@@ -1054,6 +1159,7 @@ export const AdminDashboardPage: React.FC = () => {
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-800">
         {[
           { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
+          { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
           { id: 'products', label: `Scooties (${adminProducts.length})`, icon: Package },
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
           { id: 'customers', label: `Customers (${adminCustomers.length})`, icon: Users },
@@ -1186,7 +1292,7 @@ export const AdminDashboardPage: React.FC = () => {
                   className="w-full py-2.5 px-4 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 text-xs font-semibold border border-cyan-500/40 flex items-center justify-center gap-2 cursor-pointer transition-colors"
                 >
                   <KeyRound className="w-4 h-4 text-cyan-400" />
-                  Change Security PIN (Current: {securityData.pin || '12345'})
+                  Change Security PIN & Password
                 </button>
 
                 <button
@@ -1224,14 +1330,33 @@ export const AdminDashboardPage: React.FC = () => {
 
               <div className="pt-4 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
                 <p>• Changes save permanently across all devices in real-time.</p>
-                <p>• Mobile Security PIN: <strong className="text-cyan-300 font-mono">{securityData.pin || '12345'}</strong></p>
                 <p>• Live WhatsApp number: <strong className="text-emerald-400 font-mono">{settingsForm.whatsappNumber || '03210424424'}</strong></p>
               </div>
             </div>
 
           </div>
 
+          {/* Embedded Business Analytics Snapshot */}
+          <AdminAnalyticsPanel
+            orders={adminOrders}
+            products={adminProducts}
+            reviews={adminReviews}
+            inquiries={adminInquiries}
+            customersCount={adminCustomers.length}
+          />
+
         </div>
+      )}
+
+      {/* TAB: ANALYTICS & BUSINESS REPORTS */}
+      {activeTab === 'analytics' && (
+        <AdminAnalyticsPanel
+          orders={adminOrders}
+          products={adminProducts}
+          reviews={adminReviews}
+          inquiries={adminInquiries}
+          customersCount={adminCustomers.length}
+        />
       )}
 
       {/* TAB 2: PRODUCTS MANAGEMENT */}
@@ -2326,17 +2451,13 @@ export const AdminDashboardPage: React.FC = () => {
               </span>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xl font-mono font-extrabold text-cyan-300 tracking-wider">
-                  {showSecurityPin ? securityData.pin || '12345' : '•••••'}
+                  •••••
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setShowSecurityPin(!showSecurityPin)}
-                  className="text-xs text-slate-400 hover:text-white"
-                >
-                  {showSecurityPin ? 'Hide' : 'Reveal'}
-                </button>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Cloud Synced
+                </span>
               </div>
-              <p className="text-[10px] text-slate-500">Quick unlock code for all mobile screens</p>
+              <p className="text-[10px] text-slate-500">Encrypted PIN active across all mobile & desktop devices</p>
             </div>
 
             <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-1">
@@ -2378,7 +2499,7 @@ export const AdminDashboardPage: React.FC = () => {
                   1. Change Mobile Quick Security PIN
                 </h4>
                 <p className="text-[11px] text-slate-400">
-                  Mobile se fast login karne k liye 4-6 digit numeric PIN set karein (Default: 12345).
+                  Mobile se fast login karne k liye 4-6 digit numeric PIN set karein.
                 </p>
               </div>
             </div>
@@ -2389,9 +2510,9 @@ export const AdminDashboardPage: React.FC = () => {
                   New Security PIN
                 </label>
                 <input
-                  type="text"
+                  type="password"
                   maxLength={10}
-                  placeholder="e.g. 55667 ya 1234"
+                  placeholder="Enter new PIN (4-6 digits)"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-cyan-400"
@@ -2403,7 +2524,7 @@ export const AdminDashboardPage: React.FC = () => {
                   Confirm New PIN
                 </label>
                 <input
-                  type="text"
+                  type="password"
                   maxLength={10}
                   placeholder="Re-enter new PIN"
                   value={confirmPin}
@@ -2411,21 +2532,6 @@ export const AdminDashboardPage: React.FC = () => {
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono text-sm tracking-wider focus:outline-none focus:border-cyan-400"
                 />
               </div>
-            </div>
-
-            {/* Quick Helper buttons */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-              <span className="text-slate-400 font-semibold">Suggested Quick PINs:</span>
-              {['12345', '78600', '99887', '0000', '1122'].map((sug) => (
-                <button
-                  key={sug}
-                  type="button"
-                  onClick={() => { setNewPin(sug); setConfirmPin(sug); }}
-                  className="py-1 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono font-bold border border-slate-700 cursor-pointer"
-                >
-                  {sug}
-                </button>
-              ))}
             </div>
           </div>
 
@@ -2452,7 +2558,7 @@ export const AdminDashboardPage: React.FC = () => {
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="admin@voltglide.com"
+                  placeholder="Enter admin email"
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-cyan-400"
                 />
               </div>
@@ -2492,10 +2598,10 @@ export const AdminDashboardPage: React.FC = () => {
             <div>
               <p className="text-white font-bold text-xs flex items-center gap-1.5">
                 <CheckCircle className="w-4 h-4 text-emerald-400" />
-                Live Server Persistence
+                Cross-Device Cloud Sync Active
               </p>
               <p className="text-slate-400 text-[11px]">
-                Naya PIN save karne k baad aap kisi b mobile se isi PIN k sath foran login kar saken ge.
+                Kisi bhi mobile se PIN ya password change karne par wo foran baqi tamam devices par update ho jayega.
               </p>
             </div>
             <button

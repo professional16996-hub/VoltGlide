@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { Lock, Mail, ShieldCheck, ArrowRight, KeyRound, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ensureCloudAdminSecurity, verifyCloudAdminLogin } from '../firebase.ts';
+import { Lock, Mail, ArrowRight, KeyRound, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
   const { adminLogin, navigate, isAdmin } = useApp();
@@ -13,63 +14,38 @@ export const AdminLoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [serverSecurity, setServerSecurity] = useState<{ pin: string; email: string; hasCustomPin: boolean; hasCustomPass: boolean }>({
-    pin: '12345',
-    email: 'admin@voltglide.com',
-    hasCustomPin: false,
-    hasCustomPass: false
-  });
-
-  // Fetch real-time security status from server so credentials stay 100% in sync on all devices
+  // Bootstrap cloud security document on first launch so all devices share one source of truth
   useEffect(() => {
-    let isMounted = true;
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch(`/api/admin/public-security-status?_cb=${Date.now()}`, { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success && isMounted) {
-            setServerSecurity({
-              pin: data.pin || '12345',
-              email: data.email || 'admin@voltglide.com',
-              hasCustomPin: Boolean(data.hasCustomPin),
-              hasCustomPass: Boolean(data.hasCustomPass)
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Security status fetch fallback:', err);
-      }
-    };
-
-    fetchStatus();
-
-    // Listen for SSE or tab sync updates
-    const interval = setInterval(fetchStatus, 4000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    ensureCloudAdminSecurity();
   }, []);
 
-  // If already logged in, redirect to dashboard
-  React.useEffect(() => {
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
     if (isAdmin) {
       navigate('admin-dashboard');
     }
   }, [isAdmin, navigate]);
 
-  const handleFillDemoPin = () => {
-    setPin(serverSecurity.pin);
-    setError(null);
-  };
+  const checkLocalFallbackCreds = (mode: 'pin' | 'password', inputPin: string, inputEmail: string, inputPass: string) => {
+    let savedPin = '12345';
+    let savedEmail = 'admin@voltglide.com';
+    let savedPass = 'admin12345';
+    try {
+      const localSec = localStorage.getItem('voltglide_admin_security');
+      if (localSec) {
+        const parsed = JSON.parse(localSec);
+        if (parsed.pin) savedPin = String(parsed.pin);
+        if (parsed.email) savedEmail = String(parsed.email).toLowerCase();
+        if (parsed.password) savedPass = String(parsed.password);
+      }
+    } catch {}
 
-  const handleFillDemoCreds = () => {
-    setEmail(serverSecurity.email);
-    if (!serverSecurity.hasCustomPass) {
-      setPassword('admin12345');
+    if (mode === 'pin') {
+      return inputPin === savedPin;
     }
-    setError(null);
+    const emailMatches = inputEmail === savedEmail;
+    const passMatches = inputPass === savedPass || inputPass === savedPin;
+    return emailMatches && passMatches;
   };
 
   const handlePinSubmit = async (e: React.FormEvent) => {
@@ -79,15 +55,38 @@ export const AdminLoginPage: React.FC = () => {
 
     const cleanPin = pin.trim();
     if (!cleanPin) {
-      setError('Please enter your Admin PIN');
+      setError('Please enter your Admin PIN.');
       setIsLoading(false);
       return;
     }
 
     const MASTER_TOKEN = 'voltglide-master-session-token-2026';
-    const isLocalMatch = cleanPin === serverSecurity.pin || cleanPin === '12345' || cleanPin === '1234';
 
     try {
+      // 1. Primary Cross-Device Source of Truth: Cloud Firestore
+      const cloudRes = await verifyCloudAdminLogin('pin', { pin: cleanPin });
+      if (cloudRes.cloudAvailable) {
+        if (cloudRes.ok && cloudRes.proofHash) {
+          try {
+            sessionStorage.setItem('voltglide_admin_proof_hash', cloudRes.proofHash);
+          } catch {}
+          // Also notify local Express server in background if online
+          fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin: cleanPin })
+          }).catch(() => {});
+          adminLogin(MASTER_TOKEN);
+          navigate('admin-dashboard');
+          return;
+        } else {
+          setError('Incorrect Admin PIN. Please try again.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to Express Server if Cloud Firestore is unreachable
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -103,8 +102,8 @@ export const AdminLoginPage: React.FC = () => {
             adminLogin(data.token);
             navigate('admin-dashboard');
             return;
-          } else if (data && data.message) {
-            setError(data.message);
+          } else {
+            setError('Incorrect Admin PIN. Please try again.');
             setIsLoading(false);
             return;
           }
@@ -116,11 +115,11 @@ export const AdminLoginPage: React.FC = () => {
       setIsLoading(false);
     }
 
-    if (isLocalMatch) {
+    if (checkLocalFallbackCreds('pin', cleanPin, '', '')) {
       adminLogin(MASTER_TOKEN);
       navigate('admin-dashboard');
     } else {
-      setError(`Incorrect Admin PIN. Current active PIN is ${serverSecurity.pin}`);
+      setError('Incorrect Admin PIN. Please try again.');
     }
   };
 
@@ -132,10 +131,34 @@ export const AdminLoginPage: React.FC = () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
     const MASTER_TOKEN = 'voltglide-master-session-token-2026';
-    const isLocalMatch = (cleanEmail === serverSecurity.email.toLowerCase() || !cleanEmail) &&
-      (cleanPassword === 'admin12345' || cleanPassword === serverSecurity.pin || cleanPassword === '12345');
 
     try {
+      // 1. Primary Cross-Device Source of Truth: Cloud Firestore
+      const cloudRes = await verifyCloudAdminLogin('password', {
+        email: cleanEmail,
+        password: cleanPassword
+      });
+      if (cloudRes.cloudAvailable) {
+        if (cloudRes.ok && cloudRes.proofHash) {
+          try {
+            sessionStorage.setItem('voltglide_admin_proof_hash', cloudRes.proofHash);
+          } catch {}
+          fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, password: cleanPassword })
+          }).catch(() => {});
+          adminLogin(MASTER_TOKEN);
+          navigate('admin-dashboard');
+          return;
+        } else {
+          setError('Invalid admin email or password.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to Express Server if Cloud Firestore is unreachable
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -151,8 +174,8 @@ export const AdminLoginPage: React.FC = () => {
             adminLogin(data.token);
             navigate('admin-dashboard');
             return;
-          } else if (data && data.message) {
-            setError(data.message);
+          } else {
+            setError('Invalid admin email or password.');
             setIsLoading(false);
             return;
           }
@@ -164,11 +187,11 @@ export const AdminLoginPage: React.FC = () => {
       setIsLoading(false);
     }
 
-    if (isLocalMatch) {
+    if (checkLocalFallbackCreds('password', '', cleanEmail, cleanPassword)) {
       adminLogin(MASTER_TOKEN);
       navigate('admin-dashboard');
     } else {
-      setError('Invalid admin credentials. Please enter your active password or use Quick PIN.');
+      setError('Invalid admin email or password.');
     }
   };
 
@@ -187,7 +210,7 @@ export const AdminLoginPage: React.FC = () => {
             Admin Portal Access
           </h2>
           <p className="text-xs text-slate-400">
-            Control room for VoltGlide scooty inventory, orders, PIN security & settings.
+            Authorized access only. Enter your security PIN or email credentials to continue.
           </p>
         </div>
 
@@ -220,31 +243,6 @@ export const AdminLoginPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Quick Helper Credentials Card */}
-        <div className="bg-gradient-to-r from-blue-950/60 to-cyan-950/40 border border-cyan-500/30 rounded-2xl p-3.5 text-xs space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-cyan-300 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              {loginMode === 'pin' ? 'Active Quick PIN:' : 'Active Admin Login:'}
-            </span>
-            <button
-              type="button"
-              onClick={loginMode === 'pin' ? handleFillDemoPin : handleFillDemoCreds}
-              className="text-[11px] font-bold text-cyan-200 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <Sparkles className="w-3 h-3 text-cyan-400" />
-              {loginMode === 'pin' ? `Fill PIN (${serverSecurity.pin})` : 'Fill Credentials'}
-            </button>
-          </div>
-          <div className="font-mono text-[11px] text-slate-300">
-            {loginMode === 'pin' ? (
-              <p>Security PIN: <span className="text-cyan-300 font-bold tracking-widest">{serverSecurity.pin}</span> {serverSecurity.hasCustomPin ? <span className="text-emerald-400 text-[10px] ml-1">(Configured on server)</span> : <span className="text-slate-400 text-[10px]">(Can be changed inside Admin Panel)</span>}</p>
-            ) : (
-              <p>Email: <span className="text-white">{serverSecurity.email}</span> | Pass: <span className="text-cyan-300">{serverSecurity.hasCustomPass ? '(Your Custom Password)' : 'admin12345'}</span></p>
-            )}
-          </div>
-        </div>
-
         {/* Login Card */}
         <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-7 border border-slate-800 shadow-2xl space-y-5">
           {error && (
@@ -267,7 +265,7 @@ export const AdminLoginPage: React.FC = () => {
                     required
                     autoFocus
                     maxLength={10}
-                    placeholder="Enter PIN (e.g. 12345)"
+                    placeholder="Enter PIN"
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-10 py-3 text-white focus:outline-none focus:border-cyan-400 text-center font-mono text-lg tracking-widest"
@@ -276,13 +274,14 @@ export const AdminLoginPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3.5 text-slate-400 hover:text-white"
+                    className="absolute right-3 top-3.5 text-slate-400 hover:text-white cursor-pointer"
+                    aria-label="Toggle PIN visibility"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1 text-center">
-                  Quick unlock for mobile screen and tablet owners.
+                  Quick unlock synced across all your devices.
                 </p>
               </div>
 
@@ -293,7 +292,7 @@ export const AdminLoginPage: React.FC = () => {
                     key={digit}
                     type="button"
                     onClick={() => setPin((prev) => (prev.length < 8 ? prev + digit : prev))}
-                    className="py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-sm border border-slate-800 transition-colors"
+                    className="py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-sm border border-slate-800 transition-colors cursor-pointer"
                   >
                     {digit}
                   </button>
@@ -305,7 +304,7 @@ export const AdminLoginPage: React.FC = () => {
                     key={digit}
                     type="button"
                     onClick={() => setPin((prev) => (prev.length < 8 ? prev + digit : prev))}
-                    className="py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-sm border border-slate-800 transition-colors"
+                    className="py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-sm border border-slate-800 transition-colors cursor-pointer"
                   >
                     {digit}
                   </button>
@@ -316,7 +315,7 @@ export const AdminLoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setPin('')}
-                  className="py-2 px-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold"
+                  className="py-2 px-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold cursor-pointer"
                 >
                   Clear
                 </button>
@@ -343,7 +342,7 @@ export const AdminLoginPage: React.FC = () => {
                     autoCorrect="off"
                     spellCheck={false}
                     autoComplete="username"
-                    placeholder="admin@voltglide.com"
+                    placeholder="Enter admin email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 text-xs"
@@ -371,7 +370,8 @@ export const AdminLoginPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-white"
+                    className="absolute right-3 top-3 text-slate-400 hover:text-white cursor-pointer"
+                    aria-label="Toggle password visibility"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -393,7 +393,7 @@ export const AdminLoginPage: React.FC = () => {
         <div className="text-center">
           <button
             onClick={() => navigate('home')}
-            className="text-xs text-slate-500 hover:text-cyan-400 transition-colors"
+            className="text-xs text-slate-500 hover:text-cyan-400 transition-colors cursor-pointer"
           >
             ← Return to VoltGlide Scooty Showroom
           </button>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, CartItem, Review, Banner, Order, SiteSettings, CustomerUser } from '../types.ts';
 import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
+import { saveCloudSiteSettings, subscribeToCloudSiteSettings, saveCloudOrder } from '../firebase.ts';
 
 interface ToastState {
   id: number;
@@ -407,12 +408,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch {}
 
+    // 6. Cloud Firestore live site settings listener across all devices & Netlify
+    const unsubCloudSettings = subscribeToCloudSiteSettings((cloudData) => {
+      setSettings((prev) => {
+        const merged: SiteSettings = {
+          ...prev,
+          ...cloudData,
+          socialLinks: { ...prev.socialLinks, ...(cloudData.socialLinks || {}) },
+          announcementBar: { ...prev.announcementBar, ...(cloudData.announcementBar || {}) }
+        };
+        try {
+          localStorage.setItem('voltglide_settings', JSON.stringify(merged));
+        } catch {}
+        return merged;
+      });
+    });
+
     return () => {
       if (sse) sse.close();
       clearInterval(interval);
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       if (bc) bc.close();
+      unsubCloudSettings();
     };
   }, [loadAll]);
 
@@ -430,11 +448,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    // Instant optimistic update
+    // Instant optimistic update + Cloud Firestore sync
     setSettings(updated);
     try {
       localStorage.setItem('voltglide_settings', JSON.stringify(updated));
     } catch {}
+
+    saveCloudSiteSettings(updated).catch(() => {});
 
     try {
       if (adminToken) {
@@ -855,7 +875,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch {}
 
-    // 4. Try sending to the backend server (if server is running)
+    // 4. Sync order to Cloud Firestore across all devices (works on Netlify too)
+    saveCloudOrder(newOrder).catch(() => {});
+
+    // 5. Try sending to the backend server (if server is running)
     try {
       const payload: Partial<Order> = {
         ...newOrder

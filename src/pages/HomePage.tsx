@@ -13,11 +13,13 @@ import {
   PhoneCall,
   Clock,
   Star,
-  Fuel,
   BatteryCharging,
   Layers,
   ChevronRight,
-  MapPin
+  MapPin,
+  BarChart3,
+  GitCompare,
+  Route
 } from 'lucide-react';
 import { CategoryType } from '../types.ts';
 
@@ -313,55 +315,29 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 4. ELECTRIC VS PETROL COMPARISON HIGHLIGHT */}
+      {/* 4. 4-TYPE INTERACTIVE ANALYSIS SUITE & EV SAVINGS HIGHLIGHT */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="surface-card rounded-3xl p-8 sm:p-12 relative overflow-hidden shadow-2xl">
-          <div className="max-w-3xl space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-              COMMUTER SAVINGS CALCULATOR
-            </span>
-            <h3 className="text-2xl sm:text-3xl font-black text-white font-heading">
-              Why Switch to VoltGlide Electric Scooty in Pakistan?
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              With petrol prices at record highs, an electric scooty charges for just PKR 40-60 on your standard home socket and runs up to 90 km. The average commuter saves over PKR 18,000 every month!
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-              <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06]">
-                <div className="flex items-center gap-2 text-rose-400 font-semibold text-sm mb-2">
-                  <Fuel className="w-4 h-4" />
-                  Regular Petrol Scooty
-                </div>
-                <ul className="text-xs text-slate-400 space-y-1.5">
-                  <li>• Monthly fuel expense: ~PKR 20,000 - 25,000</li>
-                  <li>• Regular engine oil & spark plug replacement</li>
-                  <li>• Vibration, loud engine noise & exhaust emissions</li>
-                </ul>
-              </div>
-
-              <div className="bg-blue-950/20 p-4 rounded-xl border border-cyan-500/30">
-                <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm mb-2">
-                  <BatteryCharging className="w-4 h-4" />
-                  VoltGlide Electric Scooty
-                </div>
-                <ul className="text-xs text-slate-300 space-y-1.5">
-                  <li>• Monthly electricity expense: <strong className="text-emerald-400">~PKR 1,500</strong></li>
-                  <li>• Zero engine oil changes or spark plug maintenance</li>
-                  <li>• 100% silent, smooth instant torque with keyless start</li>
-                </ul>
-              </div>
+        <div className="surface-card rounded-3xl p-6 sm:p-10 relative overflow-hidden shadow-2xl space-y-8">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="max-w-2xl space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                Data-Driven Buying Intelligence
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-black text-white font-heading">
+                4 Interactive Scooty Analyses Before You Buy
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                With petrol prices high, an electric scooty charges for just PKR 40–60 on your home socket and saves over PKR 18,000 every month. Use our 4 built-in analyzers to verify costs, specs, value, and range for your exact city.
+              </p>
             </div>
 
-            <div className="pt-4 flex flex-wrap gap-3 items-center">
+            <div className="flex flex-wrap gap-3 items-center shrink-0">
               <button
-                onClick={() => {
-                  setSelectedCategory('Electric');
-                  navigate('scooties');
-                }}
-                className="py-3 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md shadow-blue-600/25 flex items-center gap-2 cursor-pointer"
+                onClick={() => navigate('analysis')}
+                className="py-3 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/25 flex items-center gap-2 cursor-pointer transition-colors"
               >
-                Explore EV Models
+                <BarChart3 className="w-4 h-4" />
+                <span>Open Full 4-Type Analysis</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -369,12 +345,79 @@ export const HomePage: React.FC = () => {
                 href={getWhatsAppUrl('Hello VoltGlide! Can you calculate my monthly savings if I switch from petrol bike to an electric scooty?')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="py-3 px-6 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-xs flex items-center gap-2 shadow-sm"
+                className="py-3 px-5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-xs flex items-center gap-2 shadow-sm"
               >
                 <WhatsAppIconSVG className="w-4 h-4 text-white" />
-                <span>Calculate on WhatsApp ({phone})</span>
+                <span>Ask Expert ({phone})</span>
               </a>
             </div>
+          </div>
+
+          {/* 4 Analysis Module Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button
+              onClick={() => navigate('analysis')}
+              className="text-left p-5 rounded-2xl bg-[#080a11] border border-white/[0.08] hover:border-cyan-400/50 transition-all space-y-2.5 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between text-cyan-400">
+                <TrendingDown className="w-5 h-5" />
+                <span className="text-[11px] font-mono text-slate-500">01</span>
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                EV vs. Petrol 3-Year ROI
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                36-month cumulative expense curve, break-even month calculator, and annual CO₂ reduction.
+              </p>
+            </button>
+
+            <button
+              onClick={() => navigate('analysis')}
+              className="text-left p-5 rounded-2xl bg-[#080a11] border border-white/[0.08] hover:border-cyan-400/50 transition-all space-y-2.5 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between text-cyan-400">
+                <GitCompare className="w-5 h-5" />
+                <span className="text-[11px] font-mono text-slate-500">02</span>
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                Model Spec Comparison
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Benchmark up to 3 scooties across speed, range, warranty, running cost/km, and ratings.
+              </p>
+            </button>
+
+            <button
+              onClick={() => navigate('analysis')}
+              className="text-left p-5 rounded-2xl bg-[#080a11] border border-white/[0.08] hover:border-cyan-400/50 transition-all space-y-2.5 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between text-cyan-400">
+                <BarChart3 className="w-5 h-5" />
+                <span className="text-[11px] font-mono text-slate-500">03</span>
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                Price vs. Performance Map
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Interactive market quadrant chart plotting all models by price, speed, range, and economy.
+              </p>
+            </button>
+
+            <button
+              onClick={() => navigate('analysis')}
+              className="text-left p-5 rounded-2xl bg-[#080a11] border border-white/[0.08] hover:border-cyan-400/50 transition-all space-y-2.5 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between text-cyan-400">
+                <Route className="w-5 h-5" />
+                <span className="text-[11px] font-mono text-slate-500">04</span>
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">
+                City Route & Range Fit
+              </h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Adjust for Lahore, Karachi, or Islamabad traffic & heat to see days per charge and top matches.
+              </p>
+            </button>
           </div>
         </div>
       </section>

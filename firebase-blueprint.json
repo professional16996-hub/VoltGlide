@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "AdminSecurity": {
+      "title": "AdminSecurity",
+      "description": "Synchronized hashed admin credentials and security configuration across all devices.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 120,
+          "description": "Administrator login email address."
+        },
+        "pinHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Salted SHA-256 hex digest of the admin security PIN."
+        },
+        "passwordHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Salted SHA-256 hex digest of the admin password."
+        },
+        "lastProofHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Verification hash matching the prior PIN or password during rotation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest security update."
+        }
+      },
+      "required": ["email", "pinHash", "passwordHash", "lastProofHash", "updatedAt"]
+    },
+    "CatalogProduct": {
+      "title": "CatalogProduct",
+      "description": "Scooty inventory item synchronized across devices.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "category": { "type": "string", "enum": ["Electric", "Petrol", "Sports", "Kids", "City"] },
+        "brand": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "price": { "type": "number" },
+        "availability": { "type": "string", "enum": ["In Stock", "Limited Stock", "Pre-Order", "Out of Stock"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "category", "brand", "price", "availability", "updatedAt"]
+    },
+    "SiteConfig": {
+      "title": "SiteConfig",
+      "description": "Global dealership settings, phone numbers, social links, and announcement bar.",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "whatsappNumber": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "workingHours": { "type": "string", "maxLength": 200 },
+        "heroBadge": { "type": "string", "maxLength": 160 },
+        "heroTagline": { "type": "string", "maxLength": 400 },
+        "deliveryNotice": { "type": "string", "maxLength": 400 },
+        "footerText": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["phone", "whatsappNumber", "email", "updatedAt"]
+    },
+    "CustomerOrder": {
+      "title": "CustomerOrder",
+      "description": "Customer booking record persisted across sessions and devices.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "customerPhone": { "type": "string", "minLength": 5, "maxLength": 40 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "shippingAddress": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["Cash on Delivery", "Bank Transfer / Raast", "Online Card"] },
+        "status": { "type": "string", "enum": ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "customerName", "customerPhone", "city", "shippingAddress", "totalAmount", "paymentMethod", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/app_config/{configId}": {
+      "schema": { "$ref": "#/entities/AdminSecurity" },
+      "description": "Stores synchronized admin security hashes (admin_security) and global dealership config."
+    },
+    "/site_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteConfig" },
+      "description": "Stores live phone numbers, WhatsApp, social links, and announcement text."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/CatalogProduct" },
+      "description": "Stores scooty catalog items."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/CustomerOrder" },
+      "description": "Stores customer scooty orders."
+    }
+  }
+}
