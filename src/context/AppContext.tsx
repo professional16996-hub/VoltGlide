@@ -1,7 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Product, CartItem, Review, Banner, Order, SiteSettings, CustomerUser } from '../types.ts';
 import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
-import { saveCloudSiteSettings, subscribeToCloudSiteSettings, saveCloudOrder } from '../firebase.ts';
+import {
+  saveCloudSiteSettings,
+  subscribeToCloudSiteSettings,
+  saveCloudOrder,
+  fetchCloudOrders,
+  subscribeToCloudOrders,
+  subscribeToCloudProducts,
+  subscribeToCloudBanners
+} from '../firebase.ts';
+
+function normalizePhonePK(phone?: string): string {
+  const digits = (phone || '').replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
 
 interface ToastState {
   id: number;
@@ -191,6 +205,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const customerRef = useRef<CustomerUser | null>(customer);
+  useEffect(() => {
+    customerRef.current = customer;
+  }, [customer]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now();
@@ -408,7 +426,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch {}
 
-    // 6. Cloud Firestore live site settings listener across all devices & Netlify
+    // 6. Cloud Firestore live site settings, products, and banners listeners across all devices & Netlify
     const unsubCloudSettings = subscribeToCloudSiteSettings((cloudData) => {
       setSettings((prev) => {
         const merged: SiteSettings = {
@@ -424,6 +442,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     });
 
+    const unsubCloudProducts = subscribeToCloudProducts((cloudProducts) => {
+      setProducts(cloudProducts);
+      try {
+        localStorage.setItem('voltglide_products', JSON.stringify(cloudProducts));
+      } catch {}
+    });
+
+    const unsubCloudBanners = subscribeToCloudBanners((cloudBanners) => {
+      setBanners(cloudBanners);
+      try {
+        localStorage.setItem('voltglide_banners', JSON.stringify(cloudBanners));
+      } catch {}
+    });
+
+    const unsubCloudOrders = subscribeToCloudOrders((cloudOrders) => {
+      if (cloudOrders.length === 0) return;
+
+      // Merge cloud orders into localStorage (Cloud Firestore status takes priority)
+      let mergedAll: Order[] = cloudOrders;
+      try {
+        const saved = localStorage.getItem('voltglide_orders');
+        const localParsed: Order[] = saved ? JSON.parse(saved) : [];
+        const map = new Map<string, Order>();
+        if (Array.isArray(localParsed)) {
+          localParsed.forEach((o) => {
+            if (o && o.id) map.set(o.id, o);
+          });
+        }
+        cloudOrders.forEach((co) => {
+          if (co && co.id) map.set(co.id, co);
+        });
+        mergedAll = Array.from(map.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        localStorage.setItem('voltglide_orders', JSON.stringify(mergedAll));
+      } catch {}
+
+      const activeCust = customerRef.current;
+      if (activeCust) {
+        const cleanCustPhone = normalizePhonePK(activeCust.phone);
+        const filtered = mergedAll.filter(
+          (o) =>
+            (activeCust.id && o.customerId === activeCust.id) ||
+            (cleanCustPhone && normalizePhonePK(o.customerPhone) === cleanCustPhone)
+        );
+        setCustomerOrders(filtered);
+      }
+    });
+
     return () => {
       if (sse) sse.close();
       clearInterval(interval);
@@ -431,6 +498,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       if (bc) bc.close();
       unsubCloudSettings();
+      unsubCloudProducts();
+      unsubCloudBanners();
+      unsubCloudOrders();
     };
   }, [loadAll]);
 
@@ -598,45 +668,75 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // Customer Orders refresh (reads localStorage + server API)
+  // Customer Orders refresh (reads Cloud Firestore + server API + localStorage)
   const refreshCustomerOrders = useCallback(async () => {
-    // 1. Immediately read from localStorage so Netlify / static mode always displays customer orders
-    let localOrders: Order[] = [];
+    const mergedMap = new Map<string, Order>();
+
+    // 1. Read localStorage first for instant UI
     try {
       const saved = localStorage.getItem('voltglide_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          if (customer) {
-            const cleanCustPhone = (customer.phone || '').replace(/[^0-9]/g, '');
-            localOrders = parsed.filter(o => 
-              (customer.id && o.customerId === customer.id) || 
-              (cleanCustPhone && o.customerPhone && o.customerPhone.replace(/[^0-9]/g, '') === cleanCustPhone)
-            );
-          } else {
-            localOrders = parsed;
-          }
+          parsed.forEach((o: Order) => {
+            if (o && o.id) mergedMap.set(o.id, o);
+          });
         }
       }
     } catch {}
 
-    if (localOrders.length > 0) {
-      setCustomerOrders(localOrders);
+    const filterForActiveCustomer = (all: Order[]): Order[] => {
+      const sorted = [...all].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      if (!customer) return sorted;
+      const cleanCustPhone = normalizePhonePK(customer.phone);
+      return sorted.filter(
+        (o) =>
+          (customer.id && o.customerId === customer.id) ||
+          (cleanCustPhone && normalizePhonePK(o.customerPhone) === cleanCustPhone)
+      );
+    };
+
+    if (mergedMap.size > 0) {
+      setCustomerOrders(filterForActiveCustomer(Array.from(mergedMap.values())));
     }
 
-    if (!customer) return;
-
-    // 2. Fetch from server if available and merge
+    // 2. Fetch live orders from Cloud Firestore (cross-device & Netlify source of truth)
     try {
-      const query = new URLSearchParams();
-      if (customer.id) query.set('customerId', customer.id);
-      if (customer.phone) query.set('phone', customer.phone);
-      const res = await safeFetchJson<Order[]>(`/api/customer/orders?${query.toString()}`);
-      if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-        setCustomerOrders(res.data);
+      const cloudOrders = await fetchCloudOrders();
+      cloudOrders.forEach((co) => {
+        if (co && co.id) mergedMap.set(co.id, co);
+      });
+    } catch {}
+
+    // 3. Also merge from Express server if running
+    if (customer) {
+      try {
+        const query = new URLSearchParams();
+        if (customer.id) query.set('customerId', customer.id);
+        if (customer.phone) query.set('phone', customer.phone);
+        const res = await safeFetchJson<Order[]>(`/api/customer/orders?${query.toString()}`);
+        if (res && res.success && Array.isArray(res.data)) {
+          res.data.forEach((so) => {
+            if (so && so.id && !mergedMap.has(so.id)) {
+              mergedMap.set(so.id, so);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Server offline / Netlify mode for orders:', err);
       }
-    } catch (err) {
-      console.warn('Server offline / Netlify mode for orders:', err);
+    }
+
+    const allMerged = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    if (allMerged.length > 0) {
+      try {
+        localStorage.setItem('voltglide_orders', JSON.stringify(allMerged));
+      } catch {}
+      setCustomerOrders(filterForActiveCustomer(allMerged));
     }
   }, [customer]);
 
@@ -892,15 +992,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       if (data && data.success && data.data) {
         const confirmedOrder: Order = data.data;
+        // Keep Cloud Firestore synced with exact confirmed order record
+        saveCloudOrder(confirmedOrder).catch(() => {});
         // Update local record with server response
         try {
           const existing = localStorage.getItem('voltglide_orders');
           const ordersList: Order[] = existing ? JSON.parse(existing) : [];
-          const updated = [confirmedOrder, ...ordersList.filter(o => o.id !== localOrderId)];
+          const updated = [
+            confirmedOrder,
+            ...ordersList.filter((o) => o.id !== localOrderId && o.id !== confirmedOrder.id)
+          ];
           localStorage.setItem('voltglide_orders', JSON.stringify(updated));
         } catch {}
 
-        setCustomerOrders((prev) => [confirmedOrder, ...prev.filter(o => o.id !== localOrderId)]);
+        setCustomerOrders((prev) => [
+          confirmedOrder,
+          ...prev.filter((o) => o.id !== localOrderId && o.id !== confirmedOrder.id)
+        ]);
         showToast(`Order #${confirmedOrder.id} booked successfully!`, 'success');
         return { success: true, orderId: confirmedOrder.id, message: 'Order booked successfully!' };
       }

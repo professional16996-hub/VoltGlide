@@ -5,6 +5,7 @@ import {
   doc,
   getDocFromServer,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   collection,
   getDocs,
@@ -12,7 +13,7 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, SiteSettings } from './types.ts';
+import { Order, SiteSettings, Product, Banner } from './types.ts';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -264,26 +265,52 @@ export function subscribeToCloudSiteSettings(onUpdate: (settings: Partial<SiteSe
   );
 }
 
+function sanitizeOrderForCloud(order: Order) {
+  const safeId = String(order.id || `ORD-${Date.now().toString().slice(-6)}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const validPayments = ['Cash on Delivery', 'Bank Transfer / Raast', 'Online Card'] as const;
+  const validStatuses = ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as const;
+  const safeItems = Array.isArray(order.items)
+    ? order.items.map((item) => ({
+        productId: String(item.productId || ''),
+        productName: String(item.productName || 'Scooty').slice(0, 120),
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+        image:
+          item.image && item.image.length <= 150000
+            ? item.image
+            : '/images/electric_scooty_blue_1793645309587.jpg',
+        selectedColor: item.selectedColor ? String(item.selectedColor).slice(0, 40) : ''
+      }))
+    : [];
+
+  return {
+    safeId,
+    payload: {
+      id: safeId,
+      customerId: String(order.customerId || '').slice(0, 120),
+      customerName: String(order.customerName || 'Customer').trim().slice(0, 120) || 'Customer',
+      customerPhone: (String(order.customerPhone || '03000000000').trim() || '03000000000').padEnd(5, '0').slice(0, 40),
+      customerEmail: String(order.customerEmail || '').slice(0, 120),
+      shippingAddress: String(order.shippingAddress || 'Pakistan').trim().slice(0, 400) || 'Pakistan',
+      city: String(order.city || 'Lahore').trim().slice(0, 80) || 'Lahore',
+      items: safeItems,
+      totalAmount: Math.max(0, Number(order.totalAmount) || 0),
+      paymentMethod: validPayments.includes(order.paymentMethod as any)
+        ? order.paymentMethod
+        : 'Cash on Delivery',
+      notes: String(order.notes || '').slice(0, 300),
+      status: validStatuses.includes(order.status as any) ? order.status : 'Pending',
+      createdAt: String(order.createdAt || new Date().toISOString()).slice(0, 60),
+      updatedAt: serverTimestamp()
+    }
+  };
+}
+
 export async function saveCloudOrder(order: Order): Promise<boolean> {
-  const safeId = order.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const { safeId, payload } = sanitizeOrderForCloud(order);
   const ref = doc(db, 'orders', safeId);
   try {
-    await setDoc(ref, {
-      id: safeId,
-      customerId: order.customerId || '',
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      customerEmail: order.customerEmail || '',
-      shippingAddress: order.shippingAddress,
-      city: order.city,
-      items: order.items || [],
-      totalAmount: Number(order.totalAmount) || 0,
-      paymentMethod: order.paymentMethod || 'Cash on Delivery',
-      notes: order.notes || '',
-      status: order.status || 'Pending',
-      createdAt: order.createdAt || new Date().toISOString(),
-      updatedAt: serverTimestamp()
-    });
+    await setDoc(ref, payload);
     return true;
   } catch (error) {
     console.warn('Cloud order save warning:', error);
@@ -291,17 +318,42 @@ export async function saveCloudOrder(order: Order): Promise<boolean> {
   }
 }
 
-export async function updateCloudOrderStatus(orderId: string, status: Order['status']): Promise<boolean> {
+export async function updateCloudOrderStatus(
+  orderId: string,
+  status: Order['status'],
+  fallbackOrder?: Order
+): Promise<boolean> {
   const safeId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
   const ref = doc(db, 'orders', safeId);
   try {
-    await updateDoc(ref, {
-      status,
-      updatedAt: serverTimestamp()
-    });
-    return true;
+    const snap = await getDocFromServer(ref);
+    if (snap.exists()) {
+      await updateDoc(ref, {
+        status,
+        updatedAt: serverTimestamp()
+      });
+      return true;
+    }
+    if (fallbackOrder) {
+      return await saveCloudOrder({ ...fallbackOrder, id: safeId, status });
+    }
+    return false;
   } catch (error) {
     console.warn('Cloud order status update warning:', error);
+    if (fallbackOrder) {
+      return await saveCloudOrder({ ...fallbackOrder, id: safeId, status });
+    }
+    return false;
+  }
+}
+
+export async function deleteCloudOrder(orderId: string): Promise<boolean> {
+  const safeId = orderId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  try {
+    await deleteDoc(doc(db, 'orders', safeId));
+    return true;
+  } catch (error) {
+    console.warn('Cloud order delete warning:', error);
     return false;
   }
 }
@@ -318,4 +370,208 @@ export async function fetchCloudOrders(): Promise<Order[]> {
     console.warn('Cloud orders fetch warning:', error);
     return [];
   }
+}
+
+export function subscribeToCloudOrders(onUpdate: (orders: Order[]) => void) {
+  return onSnapshot(
+    collection(db, 'orders'),
+    (snap) => {
+      const list: Order[] = [];
+      snap.forEach((docSnap) => {
+        list.push(docSnap.data() as Order);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onUpdate(list);
+    },
+    (error) => {
+      console.warn('Cloud orders listener warning:', error);
+    }
+  );
+}
+
+// ================= CROSS-DEVICE PRODUCTS & BANNERS SYNC =================
+
+function sanitizeProductForCloud(product: Product) {
+  const safeId = product.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeImage = product.image && product.image.length <= 850000
+    ? product.image
+    : '/images/electric_scooty_blue_1793645309587.jpg';
+  const safeGallery = Array.isArray(product.gallery)
+    ? product.gallery.filter((g) => typeof g === 'string' && g.length <= 200000).slice(0, 6)
+    : [safeImage];
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    name: String(product.name || 'VoltGlide Scooty').slice(0, 160),
+    category: ['Electric', 'Petrol', 'Sports', 'Kids', 'City'].includes(product.category)
+      ? product.category
+      : 'Electric',
+    brand: String(product.brand || 'VoltGlide').slice(0, 80),
+    price: Number(product.price) || 0,
+    originalPrice: product.originalPrice != null ? Number(product.originalPrice) : null,
+    image: safeImage,
+    gallery: safeGallery,
+    shortDescription: String(product.shortDescription || '').slice(0, 500),
+    description: String(product.description || '').slice(0, 4000),
+    features: Array.isArray(product.features) ? product.features : [],
+    specs: product.specs || {},
+    availability: ['In Stock', 'Limited Stock', 'Pre-Order', 'Out of Stock'].includes(product.availability)
+      ? product.availability
+      : 'In Stock',
+    rating: Number(product.rating) || 5.0,
+    reviewCount: Number(product.reviewCount) || 0,
+    featured: Boolean(product.featured),
+    createdAt: String(product.createdAt || new Date().toISOString()).slice(0, 60),
+    updatedAt: serverTimestamp()
+  };
+  if (product.videoUrl && product.videoUrl.length <= 200000) {
+    payload.videoUrl = product.videoUrl;
+  }
+  return { safeId, payload };
+}
+
+export async function ensureCloudProductsSeeded(fallbackProducts: Product[]): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'products'));
+    if (snap.empty && fallbackProducts.length > 0) {
+      await Promise.all(
+        fallbackProducts.map((p) => {
+          const { safeId, payload } = sanitizeProductForCloud(p);
+          return setDoc(doc(db, 'products', safeId), payload);
+        })
+      );
+    }
+  } catch (error) {
+    console.warn('Cloud products seed warning:', error);
+  }
+}
+
+export async function saveCloudProduct(product: Product, allProductsFallback?: Product[]): Promise<boolean> {
+  try {
+    if (allProductsFallback && allProductsFallback.length > 0) {
+      await ensureCloudProductsSeeded(allProductsFallback);
+    }
+    const { safeId, payload } = sanitizeProductForCloud(product);
+    await setDoc(doc(db, 'products', safeId), payload);
+    return true;
+  } catch (error) {
+    console.warn('Cloud product save warning:', error);
+    return false;
+  }
+}
+
+export async function deleteCloudProduct(productId: string, allProductsFallback?: Product[]): Promise<boolean> {
+  try {
+    if (allProductsFallback && allProductsFallback.length > 0) {
+      await ensureCloudProductsSeeded(allProductsFallback);
+    }
+    const safeId = productId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    await deleteDoc(doc(db, 'products', safeId));
+    return true;
+  } catch (error) {
+    console.warn('Cloud product delete warning:', error);
+    return false;
+  }
+}
+
+export function subscribeToCloudProducts(onUpdate: (products: Product[]) => void) {
+  return onSnapshot(
+    collection(db, 'products'),
+    (snap) => {
+      if (!snap.empty) {
+        const list: Product[] = [];
+        snap.forEach((docSnap) => {
+          list.push(docSnap.data() as Product);
+        });
+        list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        onUpdate(list);
+      }
+    },
+    (error) => {
+      console.warn('Cloud products listener warning:', error);
+    }
+  );
+}
+
+function sanitizeBannerForCloud(banner: Banner) {
+  const safeId = banner.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    tag: String(banner.tag || 'PROMOTION').slice(0, 80),
+    title: String(banner.title || 'Special Promotion').slice(0, 160),
+    subtitle: String(banner.subtitle || '').slice(0, 400),
+    ctaText: String(banner.ctaText || 'Shop Now').slice(0, 80),
+    ctaLink: String(banner.ctaLink || '/scooties').slice(0, 200),
+    bgGradient: String(banner.bgGradient || 'from-blue-900 via-slate-900 to-black').slice(0, 160),
+    active: Boolean(banner.active),
+    updatedAt: serverTimestamp()
+  };
+  if (banner.image && banner.image.length <= 850000) {
+    payload.image = banner.image;
+  }
+  if (banner.videoUrl && banner.videoUrl.length <= 200000) {
+    payload.videoUrl = banner.videoUrl;
+  }
+  return { safeId, payload };
+}
+
+export async function ensureCloudBannersSeeded(fallbackBanners: Banner[]): Promise<void> {
+  try {
+    const snap = await getDocs(collection(db, 'banners'));
+    if (snap.empty && fallbackBanners.length > 0) {
+      await Promise.all(
+        fallbackBanners.map((b) => {
+          const { safeId, payload } = sanitizeBannerForCloud(b);
+          return setDoc(doc(db, 'banners', safeId), payload);
+        })
+      );
+    }
+  } catch (error) {
+    console.warn('Cloud banners seed warning:', error);
+  }
+}
+
+export async function saveCloudBanner(banner: Banner, allBannersFallback?: Banner[]): Promise<boolean> {
+  try {
+    if (allBannersFallback && allBannersFallback.length > 0) {
+      await ensureCloudBannersSeeded(allBannersFallback);
+    }
+    const { safeId, payload } = sanitizeBannerForCloud(banner);
+    await setDoc(doc(db, 'banners', safeId), payload);
+    return true;
+  } catch (error) {
+    console.warn('Cloud banner save warning:', error);
+    return false;
+  }
+}
+
+export async function deleteCloudBanner(bannerId: string, allBannersFallback?: Banner[]): Promise<boolean> {
+  try {
+    if (allBannersFallback && allBannersFallback.length > 0) {
+      await ensureCloudBannersSeeded(allBannersFallback);
+    }
+    const safeId = bannerId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    await deleteDoc(doc(db, 'banners', safeId));
+    return true;
+  } catch (error) {
+    console.warn('Cloud banner delete warning:', error);
+    return false;
+  }
+}
+
+export function subscribeToCloudBanners(onUpdate: (banners: Banner[]) => void) {
+  return onSnapshot(
+    collection(db, 'banners'),
+    (snap) => {
+      if (!snap.empty) {
+        const list: Banner[] = [];
+        snap.forEach((docSnap) => {
+          list.push(docSnap.data() as Banner);
+        });
+        onUpdate(list);
+      }
+    },
+    (error) => {
+      console.warn('Cloud banners listener warning:', error);
+    }
+  );
 }

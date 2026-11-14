@@ -88,11 +88,30 @@ service cloud.firestore {
         && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
         && data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 40
         && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
-        && data.shippingAddress is string && data.shippingAddress.size() >= 2 && data.shippingAddress.size() <= 400
+        && data.shippingAddress is string && data.shippingAddress.size() >= 1 && data.shippingAddress.size() <= 400
         && data.totalAmount is number && data.totalAmount >= 0
         && data.paymentMethod in ['Cash on Delivery', 'Bank Transfer / Raast', 'Online Card']
         && data.status in ['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled']
         && data.createdAt is string && data.createdAt.size() <= 60
+        && data.updatedAt == request.time;
+    }
+
+    function isValidBanner(data) {
+      return data.keys().hasAll(['id', 'tag', 'title', 'active', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'tag', 'title', 'subtitle', 'ctaText', 'ctaLink',
+          'bgGradient', 'image', 'videoUrl', 'active', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.tag is string && data.tag.size() >= 1 && data.tag.size() <= 80
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 400))
+        && (!('ctaText' in data) || (data.ctaText is string && data.ctaText.size() <= 80))
+        && (!('ctaLink' in data) || (data.ctaLink is string && data.ctaLink.size() <= 200))
+        && (!('bgGradient' in data) || (data.bgGradient is string && data.bgGradient.size() <= 160))
+        && (!('image' in data) || (data.image is string && data.image.size() <= 900000))
+        && (!('videoUrl' in data) || (data.videoUrl is string && data.videoUrl.size() <= 200000))
+        && data.active is bool
         && data.updatedAt == request.time;
     }
 
@@ -132,6 +151,14 @@ service cloud.firestore {
       allow delete: if isValidId(productId);
     }
 
+    // Promotional Banners
+    match /banners/{bannerId} {
+      allow get: if isValidId(bannerId);
+      allow list: if true;
+      allow create, update: if isValidId(bannerId) && isValidBanner(incoming());
+      allow delete: if isValidId(bannerId);
+    }
+
     // Customer Orders
     match /orders/{orderId} {
       allow get: if isValidId(orderId);
@@ -140,6 +167,7 @@ service cloud.firestore {
       allow update: if isValidId(orderId)
         && isValidOrder(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if isValidId(orderId);
     }
   }
 }

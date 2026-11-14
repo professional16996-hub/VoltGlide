@@ -58,7 +58,13 @@ import {
   ensureCloudAdminSecurity,
   subscribeToCloudAdminSecurity,
   fetchCloudOrders,
-  updateCloudOrderStatus
+  subscribeToCloudOrders,
+  updateCloudOrderStatus,
+  deleteCloudOrder,
+  saveCloudProduct,
+  deleteCloudProduct,
+  saveCloudBanner,
+  deleteCloudBanner
 } from '../firebase.ts';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -74,6 +80,7 @@ export const AdminDashboardPage: React.FC = () => {
     refreshProducts,
     refreshBanners,
     refreshReviews,
+    refreshCustomerOrders,
     settings,
     updateSettings,
     refreshSettings
@@ -103,6 +110,18 @@ export const AdminDashboardPage: React.FC = () => {
     }
   }, [settings]);
 
+  useEffect(() => {
+    if (products.length > 0) {
+      setAdminProducts(products);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    if (banners.length > 0) {
+      setAdminBanners(banners);
+    }
+  }, [banners]);
+
   // Stats
   const [stats, setStats] = useState({
     totalProducts: products.length || 8,
@@ -116,6 +135,7 @@ export const AdminDashboardPage: React.FC = () => {
   // Data lists
   const [adminProducts, setAdminProducts] = useState<Product[]>(products);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [adminBanners, setAdminBanners] = useState<Banner[]>(banners);
   const [adminReviews, setAdminReviews] = useState<Review[]>(reviews);
   const [adminInquiries, setAdminInquiries] = useState<ContactInquiry[]>([]);
@@ -548,6 +568,33 @@ export const AdminDashboardPage: React.FC = () => {
       }
     });
 
+    // Real-time listener for customer orders placed/updated from any mobile
+    const unsubscribeCloudOrders = subscribeToCloudOrders((cloudOrders) => {
+      if (cloudOrders.length > 0) {
+        setAdminOrders((prev) => {
+          const map = new Map<string, Order>();
+          prev.forEach((o) => {
+            if (o && o.id) map.set(o.id, o);
+          });
+          cloudOrders.forEach((co) => {
+            if (co && co.id) map.set(co.id, co);
+          });
+          const merged = Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setStats((st) => ({
+            ...st,
+            totalOrders: merged.length,
+            pendingOrders: merged.filter((o) => o.status === 'Pending').length,
+            totalSales: merged
+              .filter((o) => o.status !== 'Cancelled')
+              .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+          }));
+          return merged;
+        });
+      }
+    });
+
     // Auto-sync admin panel every 5 seconds or when screen is focused
     const syncInterval = setInterval(() => {
       if (!document.hidden && adminToken) {
@@ -566,6 +613,7 @@ export const AdminDashboardPage: React.FC = () => {
 
     return () => {
       unsubscribeCloudSec();
+      unsubscribeCloudOrders();
       clearInterval(syncInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleFocus);
@@ -671,7 +719,10 @@ export const AdminDashboardPage: React.FC = () => {
     });
 
     setIsProductModalOpen(false);
-    showToast(editingProduct ? 'Product updated successfully!' : 'New scooty added successfully!', 'success');
+    showToast(editingProduct ? 'Product updated & synced!' : 'New scooty added & synced!', 'success');
+
+    // Sync to Cloud Firestore across all devices (works on Netlify too)
+    saveCloudProduct(cleanProduct, adminProducts).catch(() => {});
 
     try {
       const url = editingProduct
@@ -709,6 +760,9 @@ export const AdminDashboardPage: React.FC = () => {
     });
     showToast(`Product "${name}" deleted.`, 'info');
 
+    // Sync deletion to Cloud Firestore across all devices
+    deleteCloudProduct(id, adminProducts).catch(() => {});
+
     try {
       const res = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
@@ -722,11 +776,46 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   // ORDER ACTIONS
-  const handleUpdateOrderStatus = async (orderId: string, status: any) => {
-    setAdminOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
-    );
-    showToast(`Order status updated to "${status}"`, 'success');
+  const handleUpdateOrderStatus = async (orderId: string, status: Order['status']) => {
+    const targetOrder = adminOrders.find((o) => o.id === orderId);
+    setUpdatingOrderId(orderId);
+
+    // 1. Optimistic update on Admin UI
+    setAdminOrders((prev) => {
+      const updated = prev.map((o) => (o.id === orderId ? { ...o, status } : o));
+      setStats((st) => ({
+        ...st,
+        totalOrders: updated.length,
+        pendingOrders: updated.filter((o) => o.status === 'Pending').length,
+        totalSales: updated
+          .filter((o) => o.status !== 'Cancelled')
+          .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+      }));
+      return updated;
+    });
+
+    // 2. Immediately update localStorage so same-device Customer Account shows the new status right away
+    try {
+      const saved = localStorage.getItem('voltglide_orders');
+      const list: Order[] = saved ? JSON.parse(saved) : [];
+      if (Array.isArray(list)) {
+        const exists = list.some((o) => o.id === orderId);
+        const updatedList = exists
+          ? list.map((o) => (o.id === orderId ? { ...o, status } : o))
+          : targetOrder
+            ? [{ ...targetOrder, status }, ...list]
+            : list;
+        localStorage.setItem('voltglide_orders', JSON.stringify(updatedList));
+      }
+    } catch {}
+
+    // 3. Persist to Cloud Firestore (upserts if missing) AND backend Express server in parallel
+    let cloudSaved = false;
+    try {
+      cloudSaved = await updateCloudOrderStatus(orderId, status, targetOrder);
+    } catch (err) {
+      console.warn('Cloud order status sync warning:', err);
+    }
 
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
@@ -735,21 +824,39 @@ export const AdminDashboardPage: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, order: targetOrder })
       });
       await safeJson(res);
-      await updateCloudOrderStatus(orderId, status);
-      await Promise.all([loadAdminOrders(), loadStats()]);
     } catch (err) {
-      await updateCloudOrderStatus(orderId, status).catch(() => {});
-      console.warn('Order status sync warning:', err);
+      console.warn('Express order status sync warning:', err);
     }
+
+    // 4. Refresh customer orders state so Customer Account reflects the change immediately
+    await refreshCustomerOrders().catch(() => {});
+    setUpdatingOrderId(null);
+    showToast(
+      cloudSaved
+        ? `Order #${orderId} status updated to "${status}" across all devices!`
+        : `Order #${orderId} status updated to "${status}"!`,
+      'success'
+    );
   };
 
   const handleDeleteOrder = async (orderId: string) => {
     if (!window.confirm(`Delete order #${orderId}?`)) return;
     setAdminOrders((prev) => prev.filter((o) => o.id !== orderId));
+    try {
+      const saved = localStorage.getItem('voltglide_orders');
+      if (saved) {
+        const list: Order[] = JSON.parse(saved);
+        if (Array.isArray(list)) {
+          localStorage.setItem('voltglide_orders', JSON.stringify(list.filter((o) => o.id !== orderId)));
+        }
+      }
+    } catch {}
     showToast(`Order #${orderId} deleted.`, 'info');
+
+    deleteCloudOrder(orderId).catch(() => {});
 
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
@@ -757,7 +864,7 @@ export const AdminDashboardPage: React.FC = () => {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
       await safeJson(res);
-      await Promise.all([loadAdminOrders(), loadStats()]);
+      await Promise.all([loadAdminOrders(), loadStats(), refreshCustomerOrders()]);
     } catch (err) {
       console.warn('Delete order sync warning:', err);
     }
@@ -812,7 +919,10 @@ export const AdminDashboardPage: React.FC = () => {
     });
 
     setIsBannerModalOpen(false);
-    showToast(editingBanner ? 'Banner updated!' : 'New banner added!', 'success');
+    showToast(editingBanner ? 'Banner updated & synced!' : 'New banner added & synced!', 'success');
+
+    // Sync banner to Cloud Firestore across all devices
+    saveCloudBanner(cleanBanner, adminBanners).catch(() => {});
 
     try {
       const url = editingBanner
@@ -845,6 +955,9 @@ export const AdminDashboardPage: React.FC = () => {
       return filtered;
     });
     showToast('Banner removed.', 'info');
+
+    // Sync deletion to Cloud Firestore across all devices
+    deleteCloudBanner(id, adminBanners).catch(() => {});
 
     try {
       const res = await fetch(`/api/admin/banners/${id}`, {
@@ -1495,12 +1608,15 @@ export const AdminDashboardPage: React.FC = () => {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-slate-400 text-[11px]">Status:</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-slate-400 text-[11px]">
+                        {updatingOrderId === ord.id ? 'Syncing...' : 'Status:'}
+                      </span>
                       <select
                         value={ord.status}
-                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                        className={`text-xs font-bold px-3 py-1 rounded-xl border focus:outline-none cursor-pointer ${
+                        disabled={updatingOrderId === ord.id}
+                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value as Order['status'])}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
                           ord.status === 'Confirmed' ? 'bg-emerald-950 text-emerald-300 border-emerald-500' :
                           ord.status === 'Shipped' ? 'bg-blue-950 text-cyan-300 border-cyan-500' :
                           ord.status === 'Delivered' ? 'bg-purple-950 text-purple-300 border-purple-500' :
@@ -1517,12 +1633,42 @@ export const AdminDashboardPage: React.FC = () => {
 
                       <button
                         onClick={() => handleDeleteOrder(ord.id)}
-                        className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
+                        className="text-slate-500 hover:text-rose-400 p-1.5 transition-colors cursor-pointer"
                         title="Delete Order"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Mobile-Friendly 1-Tap Status Controls */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as Order['status'][]).map((stOption) => {
+                      const isCurrent = ord.status === stOption;
+                      return (
+                        <button
+                          key={stOption}
+                          type="button"
+                          disabled={updatingOrderId === ord.id || isCurrent}
+                          onClick={() => handleUpdateOrderStatus(ord.id, stOption)}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                            isCurrent
+                              ? stOption === 'Confirmed'
+                                ? 'bg-emerald-600 text-white border-emerald-400 shadow'
+                                : stOption === 'Shipped'
+                                ? 'bg-cyan-600 text-white border-cyan-400 shadow'
+                                : stOption === 'Delivered'
+                                ? 'bg-purple-600 text-white border-purple-400 shadow'
+                                : stOption === 'Cancelled'
+                                ? 'bg-rose-600 text-white border-rose-400 shadow'
+                                : 'bg-amber-600 text-white border-amber-400 shadow'
+                              : 'bg-slate-900/90 text-slate-400 hover:text-white border-slate-700/80'
+                          }`}
+                        >
+                          {stOption}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Order items */}

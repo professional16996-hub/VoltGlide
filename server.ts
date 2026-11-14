@@ -878,7 +878,7 @@ app.post('/api/reviews', (req, res) => {
 
 // Public: Place an order (links to customer account if logged in or matching phone)
 app.post('/api/orders', (req, res) => {
-  const { customerId, customerName, customerPhone, customerEmail, shippingAddress, city, items, totalAmount, paymentMethod, notes } = req.body;
+  const { id, customerId, customerName, customerPhone, customerEmail, shippingAddress, city, items, totalAmount, paymentMethod, notes } = req.body;
 
   if (!customerName || !customerPhone || !shippingAddress || !items || !items.length) {
     res.status(400).json({ success: false, message: 'Please provide full contact details and order items.' });
@@ -897,8 +897,15 @@ app.post('/api/orders', (req, res) => {
     }
   }
 
+  const safeOrderId =
+    typeof id === 'string' && /^[a-zA-Z0-9_-]{3,80}$/.test(id)
+      ? id
+      : `ORD-${Date.now().toString().slice(-6)}`;
+
+  const existingIdx = db.orders.findIndex((o) => o.id === safeOrderId);
+
   const newOrder: Order = {
-    id: `ORD-${Date.now().toString().slice(-6)}`,
+    id: safeOrderId,
     customerId: assignedCustomerId || undefined,
     customerName: String(customerName).slice(0, 100),
     customerPhone: String(customerPhone).slice(0, 30),
@@ -913,7 +920,11 @@ app.post('/api/orders', (req, res) => {
     createdAt: new Date().toISOString()
   };
 
-  db.orders.unshift(newOrder);
+  if (existingIdx > -1) {
+    db.orders[existingIdx] = { ...db.orders[existingIdx], ...newOrder };
+  } else {
+    db.orders.unshift(newOrder);
+  }
   saveDatabase(db);
 
   res.json({ success: true, message: 'Order booked successfully!', data: newOrder });
@@ -1488,10 +1499,20 @@ app.get('/api/admin/orders', authenticateAdmin, (req, res) => {
 
 app.put('/api/admin/orders/:id', authenticateAdmin, (req, res) => {
   const db = loadDatabase();
-  const order = db.orders.find(o => o.id === req.params.id);
+  let order = db.orders.find(o => o.id === req.params.id);
   if (!order) {
-    res.status(404).json({ success: false, message: 'Order not found' });
-    return;
+    if (req.body.order && typeof req.body.order === 'object') {
+      const upsertedOrder: Order = {
+        ...(req.body.order as Order),
+        id: req.params.id,
+        status: req.body.status || req.body.order.status || 'Pending'
+      };
+      db.orders.unshift(upsertedOrder);
+      order = upsertedOrder;
+    } else {
+      res.status(404).json({ success: false, message: 'Order not found' });
+      return;
+    }
   }
 
   if (req.body.status) {
