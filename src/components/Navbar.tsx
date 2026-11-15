@@ -57,7 +57,7 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#080a11]/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+    <header className="sticky top-0 z-40 w-full max-w-full bg-[#080a11]/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
       {/* Dynamic Announcement Bar configured from Admin Panel */}
       {settings?.announcementBar?.enabled && settings.announcementBar.text && (
         <div className="bg-[#0e1424] border-b border-white/[0.06] text-slate-200 text-[11px] sm:text-xs py-2 px-4 text-center flex items-center justify-center gap-2 font-medium tracking-wide">
@@ -218,21 +218,6 @@ export const Navbar: React.FC = () => {
               <Search className="w-4 h-4" />
             </button>
 
-            {/* Shopping Cart Button */}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-slate-300 hover:text-white rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
-              aria-label="Shopping Cart"
-              title="View Cart"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-
             {/* Permanent Push Notifications Bell & History */}
             <NotificationCenter />
 
@@ -259,7 +244,7 @@ export const Navbar: React.FC = () => {
             <div className="relative" ref={threeDotsRef}>
               <button
                 onClick={() => setIsThreeDotsOpen(!isThreeDotsOpen)}
-                className={`p-2 rounded-xl transition-all border cursor-pointer ${
+                className={`relative p-2 rounded-xl transition-all border cursor-pointer ${
                   isThreeDotsOpen
                     ? 'bg-blue-600/30 text-cyan-300 border-cyan-500 shadow-md shadow-blue-500/20'
                     : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border-white/[0.08]'
@@ -268,6 +253,11 @@ export const Navbar: React.FC = () => {
                 aria-label="Options Menu"
               >
                 <MoreVertical className="w-4 h-4" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
+                    {cartCount}
+                  </span>
+                )}
               </button>
 
               {/* Dropdown Menu */}
@@ -280,6 +270,24 @@ export const Navbar: React.FC = () => {
                   </div>
 
                   <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setIsCartOpen(true);
+                        setIsThreeDotsOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600/20 flex items-center justify-between gap-3 transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-3">
+                        <ShoppingCart className="w-4 h-4 text-cyan-400" />
+                        <span>Shopping Cart</span>
+                      </span>
+                      {cartCount > 0 && (
+                        <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {cartCount}
+                        </span>
+                      )}
+                    </button>
+
                     <button
                       onClick={() => {
                         navigate('home');

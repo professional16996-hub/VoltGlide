@@ -59,13 +59,13 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-canvas text-slate-100 font-sans w-full max-w-full overflow-x-hidden relative selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-canvas text-slate-100 font-sans w-full max-w-full overflow-x-clip relative selection:bg-blue-600 selection:text-white">
       
       {/* Navbar with brand, links, cart, and top-right three dots menu for Admin Login */}
       <Navbar />
 
       {/* Main Page Body */}
-      <main className="flex-1">
+      <main className="flex-1 min-w-0 w-full max-w-full overflow-x-clip">
         {renderPage()}
       </main>
 
@@ -82,7 +82,7 @@ const MainContent: React.FC = () => {
       <Footer />
 
       {/* Toast Notification Container */}
-      <div className="fixed top-24 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+      <div className="fixed top-20 right-3 left-3 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}

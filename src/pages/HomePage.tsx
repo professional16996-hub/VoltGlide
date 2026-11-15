@@ -41,10 +41,10 @@ export const HomePage: React.FC = () => {
     <div className="space-y-16 sm:space-y-20 w-full max-w-full overflow-x-hidden">
       
       {/* 1. FRONT / HERO SHOWCASE SECTION */}
-      <section className="relative pt-4 sm:pt-6 pb-12 border-b border-white/[0.06]">
+      <section className="relative pt-4 sm:pt-6 pb-12 border-b border-white/[0.06] overflow-hidden">
         
         {/* Subtle Ambient Radial Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,100vw)] h-[350px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           
