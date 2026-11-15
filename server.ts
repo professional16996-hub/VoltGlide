@@ -456,10 +456,14 @@ const INITIAL_REVIEWS: Review[] = [
 const INITIAL_ORDERS: Order[] = [
   {
     id: 'ORD-2026-881',
+    accountType: 'Registered',
     customerName: 'Kamran Siddiqui',
     customerPhone: '03001234567',
+    alternatePhone: '03211234567',
     customerEmail: 'kamran.siddiqui@gmail.com',
+    cnic: '61101-1234567-1',
     shippingAddress: 'House 45, Street 12, Sector I-8/2',
+    areaLandmark: 'Near I-8 Markaz / Kachnar Park',
     city: 'Islamabad',
     items: [
       {
@@ -479,10 +483,13 @@ const INITIAL_ORDERS: Order[] = [
   },
   {
     id: 'ORD-2026-882',
+    accountType: 'Guest',
     customerName: 'Sana Farooq',
     customerPhone: '03219876543',
+    alternatePhone: '03339876543',
     customerEmail: 'sana.f@yahoo.com',
     shippingAddress: 'Flat 4B, Al-Raheem Heights, Gulshan-e-Iqbal',
+    areaLandmark: 'Near Disco Bakery, Block 13-D',
     city: 'Karachi',
     items: [
       {
@@ -878,7 +885,23 @@ app.post('/api/reviews', (req, res) => {
 
 // Public: Place an order (links to customer account if logged in or matching phone)
 app.post('/api/orders', (req, res) => {
-  const { id, customerId, customerName, customerPhone, customerEmail, shippingAddress, city, items, totalAmount, paymentMethod, notes } = req.body;
+  const {
+    id,
+    customerId,
+    accountType,
+    customerName,
+    customerPhone,
+    alternatePhone,
+    customerEmail,
+    cnic,
+    shippingAddress,
+    areaLandmark,
+    city,
+    items,
+    totalAmount,
+    paymentMethod,
+    notes
+  } = req.body;
 
   if (!customerName || !customerPhone || !shippingAddress || !items || !items.length) {
     res.status(400).json({ success: false, message: 'Please provide full contact details and order items.' });
@@ -907,11 +930,15 @@ app.post('/api/orders', (req, res) => {
   const newOrder: Order = {
     id: safeOrderId,
     customerId: assignedCustomerId || undefined,
-    customerName: String(customerName).slice(0, 100),
-    customerPhone: String(customerPhone).slice(0, 30),
-    customerEmail: String(customerEmail || '').slice(0, 100),
-    shippingAddress: String(shippingAddress).slice(0, 250),
-    city: String(city || 'Lahore').slice(0, 100),
+    accountType: accountType === 'Registered' || assignedCustomerId ? 'Registered' : 'Guest',
+    customerName: String(customerName).trim().slice(0, 100),
+    customerPhone: String(customerPhone).trim().slice(0, 30),
+    alternatePhone: alternatePhone ? String(alternatePhone).trim().slice(0, 30) : '',
+    customerEmail: String(customerEmail || '').trim().slice(0, 100),
+    cnic: cnic ? String(cnic).trim().slice(0, 30) : '',
+    shippingAddress: String(shippingAddress).trim().slice(0, 250),
+    areaLandmark: areaLandmark ? String(areaLandmark).trim().slice(0, 160) : '',
+    city: String(city || 'Lahore').trim().slice(0, 100),
     items,
     totalAmount: Number(totalAmount) || 0,
     paymentMethod: paymentMethod || 'Cash on Delivery',

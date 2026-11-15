@@ -48,7 +48,12 @@ import {
   Download,
   RefreshCw,
   Users,
-  BarChart3
+  BarChart3,
+  User,
+  Copy,
+  Printer,
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
@@ -141,8 +146,12 @@ export const AdminDashboardPage: React.FC = () => {
   const [adminInquiries, setAdminInquiries] = useState<ContactInquiry[]>([]);
   const [adminCustomers, setAdminCustomers] = useState<{ id: string; name: string; phone: string; email?: string; city?: string; address?: string; createdAt: string; ordersCount: number }[]>([]);
 
-  // Search in products
+  // Search & filters
   const [productSearch, setProductSearch] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'All' | Order['status']>('All');
+  const [selectedOrderSlip, setSelectedOrderSlip] = useState<Order | null>(null);
+  const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
 
   // Product Add / Edit Modal State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -1187,6 +1196,145 @@ export const AdminDashboardPage: React.FC = () => {
     showToast('Admin screen locked. Use your Security PIN to unlock!', 'info');
   };
 
+  const handleCopyClientOrder = async (ord: Order) => {
+    const itemsText = ord.items
+      .map((it) => `${it.productName} (Qty ${it.quantity}${it.selectedColor ? `, ${it.selectedColor}` : ''}) - ${formatPKR(it.price * it.quantity)}`)
+      .join('\n  ');
+    const summary = [
+      `Order ID: #${ord.id}`,
+      `Status: ${ord.status}`,
+      `Date: ${new Date(ord.createdAt).toLocaleString('en-PK')}`,
+      `Client Name: ${ord.customerName}`,
+      `Primary Phone: ${ord.customerPhone}`,
+      ord.alternatePhone ? `Alternate Phone: ${ord.alternatePhone}` : '',
+      ord.customerEmail ? `Email: ${ord.customerEmail}` : '',
+      ord.cnic ? `CNIC: ${ord.cnic}` : '',
+      `City: ${ord.city}`,
+      ord.areaLandmark ? `Area / Landmark: ${ord.areaLandmark}` : '',
+      `Delivery Address: ${ord.shippingAddress}`,
+      `Payment Method: ${ord.paymentMethod}`,
+      ord.notes ? `Notes: ${ord.notes}` : '',
+      `Items:\n  ${itemsText}`,
+      `Total Amount: ${formatPKR(ord.totalAmount)}`
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      await navigator.clipboard.writeText(summary);
+      setCopiedOrderId(ord.id);
+      showToast(`Client & Order #${ord.id} details copied!`, 'success');
+      setTimeout(() => setCopiedOrderId((prev) => (prev === ord.id ? null : prev)), 2500);
+    } catch {
+      showToast('Could not copy automatically.', 'error');
+    }
+  };
+
+  const normalizeClientPhone = (p?: string) => {
+    const d = (p || '').replace(/[^0-9]/g, '');
+    if (d.startsWith('92') && d.length >= 12) return '0' + d.slice(2);
+    if (d.startsWith('3') && d.length === 10) return '0' + d;
+    return d;
+  };
+
+  const combinedAdminCustomers = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        phone: string;
+        alternatePhone?: string;
+        email?: string;
+        cnic?: string;
+        city?: string;
+        areaLandmark?: string;
+        address?: string;
+        createdAt: string;
+        ordersCount: number;
+        totalSpent: number;
+        source: 'Registered' | 'Order Client';
+      }
+    >();
+
+    adminCustomers.forEach((c) => {
+      const key = normalizeClientPhone(c.phone) || c.id;
+      map.set(key, {
+        ...c,
+        totalSpent: 0,
+        source: 'Registered'
+      });
+    });
+
+    adminOrders.forEach((o) => {
+      const key = normalizeClientPhone(o.customerPhone) || o.customerId || o.id;
+      const existing = map.get(key);
+      const validSpend = o.status !== 'Cancelled' ? Number(o.totalAmount) || 0 : 0;
+      if (existing) {
+        existing.ordersCount = Math.max(existing.ordersCount, 0) + 1;
+        existing.totalSpent += validSpend;
+        if (!existing.email && o.customerEmail) existing.email = o.customerEmail;
+        if (!existing.address && o.shippingAddress) existing.address = o.shippingAddress;
+        if (!existing.city && o.city) existing.city = o.city;
+        if (!existing.alternatePhone && o.alternatePhone) existing.alternatePhone = o.alternatePhone;
+        if (!existing.cnic && o.cnic) existing.cnic = o.cnic;
+        if (!existing.areaLandmark && o.areaLandmark) existing.areaLandmark = o.areaLandmark;
+      } else {
+        map.set(key, {
+          id: o.customerId || `client-${key}`,
+          name: o.customerName || 'Customer',
+          phone: o.customerPhone,
+          alternatePhone: o.alternatePhone,
+          email: o.customerEmail,
+          cnic: o.cnic,
+          city: o.city,
+          areaLandmark: o.areaLandmark,
+          address: o.shippingAddress,
+          createdAt: o.createdAt,
+          ordersCount: 1,
+          totalSpent: validSpend,
+          source: o.accountType === 'Registered' ? 'Registered' : 'Order Client'
+        });
+      }
+    });
+
+    // Recompute exact order counts from adminOrders so numbers stay accurate
+    return Array.from(map.values()).map((c) => {
+      const key = normalizeClientPhone(c.phone);
+      const matching = adminOrders.filter(
+        (o) =>
+          (key && normalizeClientPhone(o.customerPhone) === key) ||
+          (o.customerId && o.customerId === c.id)
+      );
+      return {
+        ...c,
+        ordersCount: matching.length > 0 ? matching.length : c.ordersCount,
+        totalSpent:
+          matching.length > 0
+            ? matching.filter((o) => o.status !== 'Cancelled').reduce((s, o) => s + (Number(o.totalAmount) || 0), 0)
+            : c.totalSpent
+      };
+    });
+  }, [adminCustomers, adminOrders]);
+
+  const filteredAdminOrders = adminOrders.filter((ord) => {
+    const matchesStatus = orderStatusFilter === 'All' || ord.status === orderStatusFilter;
+    if (!matchesStatus) return false;
+    const q = orderSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      ord.id.toLowerCase().includes(q) ||
+      ord.customerName.toLowerCase().includes(q) ||
+      ord.customerPhone.toLowerCase().includes(q) ||
+      (ord.alternatePhone || '').toLowerCase().includes(q) ||
+      (ord.customerEmail || '').toLowerCase().includes(q) ||
+      (ord.city || '').toLowerCase().includes(q) ||
+      (ord.shippingAddress || '').toLowerCase().includes(q) ||
+      (ord.areaLandmark || '').toLowerCase().includes(q) ||
+      ord.items.some((it) => it.productName.toLowerCase().includes(q))
+    );
+  });
+
   const filteredAdminProducts = adminProducts.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.brand.toLowerCase().includes(productSearch.toLowerCase()) ||
@@ -1275,7 +1423,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
           { id: 'products', label: `Scooties (${adminProducts.length})`, icon: Package },
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
-          { id: 'customers', label: `Customers (${adminCustomers.length})`, icon: Users },
+          { id: 'customers', label: `Customers (${combinedAdminCustomers.length})`, icon: Users },
           { id: 'inquiries', label: `Customer Leads (${adminInquiries.length})`, icon: Mail },
           { id: 'banners', label: `Banners (${adminBanners.length})`, icon: ImageIcon },
           { id: 'reviews', label: `Reviews (${adminReviews.length})`, icon: MessageSquare },
@@ -1357,25 +1505,32 @@ export const AdminDashboardPage: React.FC = () => {
                   {adminOrders.slice(0, 4).map((order) => (
                     <div
                       key={order.id}
-                      className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs"
+                      onClick={() => setActiveTab('orders')}
+                      className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs cursor-pointer transition-colors"
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono font-bold text-cyan-300">{order.id}</span>
                           <span className="font-bold text-white">{order.customerName}</span>
-                          <span className="text-slate-500">({order.city})</span>
+                          <span className="text-slate-300 font-mono">{order.customerPhone}</span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Items: {order.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')}
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {order.shippingAddress}{order.areaLandmark ? ` (${order.areaLandmark})` : ''}, {order.city}
+                          {order.customerEmail ? ` · ${order.customerEmail}` : ''}
+                        </p>
+                        <p className="text-[11px] text-slate-300">
+                          {order.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')} ·{' '}
+                          <span className="text-slate-400">{order.paymentMethod}</span>
                         </p>
                       </div>
 
-                      <div className="text-right">
-                        <span className="font-bold text-white block">{formatPKR(order.totalAmount)}</span>
+                      <div className="sm:text-right shrink-0">
+                        <span className="font-bold text-white block font-mono tabular-nums">{formatPKR(order.totalAmount)}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-1 ${
                           order.status === 'Confirmed' ? 'bg-emerald-500/20 text-emerald-400' :
                           order.status === 'Shipped' ? 'bg-blue-500/20 text-cyan-400' :
                           order.status === 'Delivered' ? 'bg-purple-500/20 text-purple-400' :
+                          order.status === 'Cancelled' ? 'bg-rose-500/20 text-rose-400' :
                           'bg-amber-500/20 text-amber-300'
                         }`}>
                           {order.status}
@@ -1455,7 +1610,7 @@ export const AdminDashboardPage: React.FC = () => {
             products={adminProducts}
             reviews={adminReviews}
             inquiries={adminInquiries}
-            customersCount={adminCustomers.length}
+            customersCount={combinedAdminCustomers.length}
           />
 
         </div>
@@ -1468,7 +1623,7 @@ export const AdminDashboardPage: React.FC = () => {
           products={adminProducts}
           reviews={adminReviews}
           inquiries={adminInquiries}
-          customersCount={adminCustomers.length}
+          customersCount={combinedAdminCustomers.length}
         />
       )}
 
@@ -1579,124 +1734,278 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 3: ORDERS MANAGEMENT */}
       {activeTab === 'orders' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-white text-base font-heading">
-              Customer Orders & WhatsApp Bookings ({adminOrders.length})
-            </h3>
+          {/* Header + Search + Status Filters */}
+          <div className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-white text-base font-heading">
+                  Customer Orders & Complete Client Details ({filteredAdminOrders.length})
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Har order k sath client ka pura naam, WhatsApp/alternate number, email, CNIC, shehar, landmark aur mukammal address show hota hai.
+                </p>
+              </div>
+              <div className="relative w-full sm:w-80">
+                <input
+                  type="text"
+                  placeholder="Search order ID, client name, phone, city..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  className="w-full bg-slate-900 text-xs text-white placeholder-slate-500 pl-9 pr-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-400"
+                />
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5 pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(['All', 'Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setOrderStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                    orderStatusFilter === st
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {st}
+                  {st !== 'All' && (
+                    <span className="ml-1.5 font-mono text-[10px] opacity-80">
+                      ({adminOrders.filter((o) => o.status === st).length})
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-4">
-            {adminOrders.length === 0 ? (
+            {filteredAdminOrders.length === 0 ? (
               <div className="bg-[#0f172a] rounded-3xl p-12 text-center border border-slate-800 text-slate-400 text-xs">
-                No orders registered yet. Orders placed through cart will appear here automatically.
+                {adminOrders.length === 0
+                  ? 'No orders registered yet. Orders placed through cart will appear here automatically.'
+                  : 'No orders match your current search or status filter.'}
               </div>
             ) : (
-              adminOrders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-4 text-xs"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-cyan-400 text-sm">{ord.id}</span>
-                        <span className="text-white font-bold">{ord.customerName}</span>
-                        <span className="text-slate-400 font-mono">({ord.customerPhone})</span>
+              filteredAdminOrders.map((ord) => {
+                const clientWaUrl = `https://wa.me/${cleanWhatsAppNumber(ord.customerPhone)}?text=${encodeURIComponent(
+                  `Assalam-o-Alaikum ${ord.customerName}! Regarding your VoltGlide Order #${ord.id} (Status: ${ord.status}, Total: ${formatPKR(ord.totalAmount)}).`
+                )}`;
+                const clientTel = `tel:${ord.customerPhone.replace(/[^0-9+]/g, '')}`;
+
+                return (
+                  <div
+                    key={ord.id}
+                    className="bg-[#0f172a] rounded-2xl p-5 border border-slate-800 space-y-4 text-xs"
+                  >
+                    {/* Order Header + Status Control */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono font-bold text-cyan-400 text-sm">#{ord.id}</span>
+                          <span className="text-white font-bold text-sm">{ord.customerName}</span>
+                          <span className="text-[11px] font-medium text-slate-400">
+                            · {ord.accountType === 'Registered' || ord.customerId ? 'Registered Customer' : 'Guest Checkout'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-mono tabular-nums">
+                          Placed: {new Date(ord.createdAt).toLocaleString('en-PK', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {ord.city} • {ord.shippingAddress} • Placed {new Date(ord.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-400 text-[11px]">
-                        {updatingOrderId === ord.id ? 'Syncing...' : 'Status:'}
-                      </span>
-                      <select
-                        value={ord.status}
-                        disabled={updatingOrderId === ord.id}
-                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value as Order['status'])}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
-                          ord.status === 'Confirmed' ? 'bg-emerald-950 text-emerald-300 border-emerald-500' :
-                          ord.status === 'Shipped' ? 'bg-blue-950 text-cyan-300 border-cyan-500' :
-                          ord.status === 'Delivered' ? 'bg-purple-950 text-purple-300 border-purple-500' :
-                          ord.status === 'Cancelled' ? 'bg-rose-950 text-rose-300 border-rose-500' :
-                          'bg-amber-950 text-amber-300 border-amber-500'
-                        }`}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Shipped">Shipped</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-
-                      <button
-                        onClick={() => handleDeleteOrder(ord.id)}
-                        className="text-slate-500 hover:text-rose-400 p-1.5 transition-colors cursor-pointer"
-                        title="Delete Order"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Mobile-Friendly 1-Tap Status Controls */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as Order['status'][]).map((stOption) => {
-                      const isCurrent = ord.status === stOption;
-                      return (
-                        <button
-                          key={stOption}
-                          type="button"
-                          disabled={updatingOrderId === ord.id || isCurrent}
-                          onClick={() => handleUpdateOrderStatus(ord.id, stOption)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                            isCurrent
-                              ? stOption === 'Confirmed'
-                                ? 'bg-emerald-600 text-white border-emerald-400 shadow'
-                                : stOption === 'Shipped'
-                                ? 'bg-cyan-600 text-white border-cyan-400 shadow'
-                                : stOption === 'Delivered'
-                                ? 'bg-purple-600 text-white border-purple-400 shadow'
-                                : stOption === 'Cancelled'
-                                ? 'bg-rose-600 text-white border-rose-400 shadow'
-                                : 'bg-amber-600 text-white border-amber-400 shadow'
-                              : 'bg-slate-900/90 text-slate-400 hover:text-white border-slate-700/80'
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-slate-400 text-[11px]">
+                          {updatingOrderId === ord.id ? 'Syncing...' : 'Status:'}
+                        </span>
+                        <select
+                          value={ord.status}
+                          disabled={updatingOrderId === ord.id}
+                          onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value as Order['status'])}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
+                            ord.status === 'Confirmed' ? 'bg-emerald-950 text-emerald-300 border-emerald-500' :
+                            ord.status === 'Shipped' ? 'bg-blue-950 text-cyan-300 border-cyan-500' :
+                            ord.status === 'Delivered' ? 'bg-purple-950 text-purple-300 border-purple-500' :
+                            ord.status === 'Cancelled' ? 'bg-rose-950 text-rose-300 border-rose-500' :
+                            'bg-amber-950 text-amber-300 border-amber-500'
                           }`}
                         >
-                          {stOption}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <option value="Pending">Pending</option>
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
 
-                  {/* Order items */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {ord.items.map((item, i) => (
-                      <div key={i} className="flex items-center gap-3 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
-                        <img src={item.image} alt={item.productName} className="w-10 h-10 rounded-lg object-cover bg-slate-950" />
+                        <button
+                          onClick={() => handleDeleteOrder(ord.id)}
+                          className="text-slate-500 hover:text-rose-400 p-1.5 transition-colors cursor-pointer"
+                          title="Delete Order"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mobile-Friendly 1-Tap Status Controls */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'] as Order['status'][]).map((stOption) => {
+                        const isCurrent = ord.status === stOption;
+                        return (
+                          <button
+                            key={stOption}
+                            type="button"
+                            disabled={updatingOrderId === ord.id || isCurrent}
+                            onClick={() => handleUpdateOrderStatus(ord.id, stOption)}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                              isCurrent
+                                ? stOption === 'Confirmed'
+                                  ? 'bg-emerald-600 text-white border-emerald-400 shadow'
+                                  : stOption === 'Shipped'
+                                  ? 'bg-cyan-600 text-white border-cyan-400 shadow'
+                                  : stOption === 'Delivered'
+                                  ? 'bg-purple-600 text-white border-purple-400 shadow'
+                                  : stOption === 'Cancelled'
+                                  ? 'bg-rose-600 text-white border-rose-400 shadow'
+                                  : 'bg-amber-600 text-white border-amber-400 shadow'
+                                : 'bg-slate-900/90 text-slate-400 hover:text-white border-slate-700/80'
+                            }`}
+                          >
+                            {stOption}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Complete Client Contact & Delivery Profile Card */}
+                    <div className="bg-slate-950/70 rounded-xl border border-slate-800 p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5" />
+                          Client Complete Details
+                        </span>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a
+                            href={clientWaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                          >
+                            <WhatsAppIconSVG className="w-3 h-3 fill-white" />
+                            <span>WhatsApp Client</span>
+                          </a>
+                          <a
+                            href={clientTel}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-cyan-300 border border-cyan-500/30 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>Call</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyClientOrder(ord)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Copy className="w-3 h-3 text-cyan-400" />
+                            <span>{copiedOrderId === ord.id ? 'Copied!' : 'Copy Details'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderSlip(ord)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Printer className="w-3 h-3 text-cyan-400" />
+                            <span>Full Slip</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                         <div>
-                          <p className="font-bold text-white">{item.productName}</p>
-                          <p className="text-[11px] text-slate-400">
-                            Qty: {item.quantity} • {formatPKR(item.price)} each
+                          <span className="text-[11px] text-slate-500 block">Client Full Name</span>
+                          <span className="font-bold text-white">{ord.customerName}</span>
+                          {ord.customerId && (
+                            <span className="block text-[10px] text-slate-400 font-mono">Acc: {ord.customerId}</span>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">Primary WhatsApp / Mobile</span>
+                          <span className="font-mono font-bold text-emerald-300">{ord.customerPhone}</span>
+                          {ord.alternatePhone && (
+                            <span className="block text-[11px] text-slate-300 font-mono">
+                              Alt: {ord.alternatePhone}
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">Email & CNIC</span>
+                          <span className="text-slate-200 block truncate">
+                            {ord.customerEmail ? ord.customerEmail : 'Email not provided'}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono block">
+                            {ord.cnic ? `CNIC: ${ord.cnic}` : 'CNIC not provided'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">City & Area / Landmark</span>
+                          <span className="font-semibold text-cyan-300 block">{ord.city}</span>
+                          <span className="text-[11px] text-slate-300 block">
+                            {ord.areaLandmark || 'Standard city zone'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/70 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">Complete Delivery Address</span>
+                          <p className="text-white font-medium">{ord.shippingAddress}</p>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">Order Notes / Special Instructions</span>
+                          <p className={ord.notes ? 'text-amber-200 font-medium' : 'text-slate-500'}>
+                            {ord.notes || 'No special notes provided by client.'}
                           </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
 
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
-                    <div>
-                      <span>Payment Method: <strong className="text-white">{ord.paymentMethod}</strong></span>
-                      {ord.notes && <span className="ml-4">Note: "{ord.notes}"</span>}
+                    {/* Order items */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {ord.items.map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                          <img src={item.image} alt={item.productName} className="w-10 h-10 rounded-lg object-cover bg-slate-950" />
+                          <div>
+                            <p className="font-bold text-white">{item.productName}</p>
+                            <p className="text-[11px] text-slate-400 font-mono tabular-nums">
+                              Qty: {item.quantity}{item.selectedColor ? ` · Color: ${item.selectedColor}` : ''} · {formatPKR(item.price)} each
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-sm font-extrabold text-cyan-300 font-heading">
-                      Total: {formatPKR(ord.totalAmount)}
+
+                    <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Payment Method: <strong className="text-white">{ord.paymentMethod}</strong></span>
+                      </div>
+                      <div className="text-sm font-extrabold text-cyan-300 font-mono tabular-nums">
+                        Total: {formatPKR(ord.totalAmount)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -2362,16 +2671,16 @@ export const AdminDashboardPage: React.FC = () => {
         </form>
       )}
 
-      {/* TAB: REGISTERED CUSTOMERS */}
+      {/* TAB: REGISTERED & ORDER CUSTOMERS */}
       {activeTab === 'customers' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0f172a] p-5 rounded-3xl border border-slate-800 shadow-xl">
             <div>
               <h3 className="font-bold text-white text-base font-heading">
-                Registered Customer Accounts ({adminCustomers.length})
+                Complete Client Directory ({combinedAdminCustomers.length})
               </h3>
               <p className="text-xs text-slate-400">
-                Tamam registered customers, un k mobile numbers, addresses aur order records.
+                Tamam registered aur checkout karne wale clients, un k WhatsApp numbers, alternate phone, CNIC, addresses aur order totals.
               </p>
             </div>
             <button
@@ -2383,45 +2692,50 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
           </div>
 
-          {adminCustomers.length === 0 ? (
+          {combinedAdminCustomers.length === 0 ? (
             <div className="bg-[#0f172a] rounded-3xl p-12 text-center border border-slate-800 space-y-3">
               <Users className="w-10 h-10 text-slate-600 mx-auto" />
-              <h4 className="text-white font-bold text-base">No Customers Registered Yet</h4>
+              <h4 className="text-white font-bold text-base">No Customers Recorded Yet</h4>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Jab b koi customer website pe naya account banaye ga ya checkout kare ga, un ki details yahan foran show hon gi.
+                Jab b koi customer website pe naya account banaye ga ya order place kare ga, un ki complete details yahan foran show hon gi.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {adminCustomers.map((cust) => {
+              {combinedAdminCustomers.map((cust) => {
                 const waUrl = `https://wa.me/${cleanWhatsAppNumber(cust.phone)}?text=${encodeURIComponent(
                   `Hello ${cust.name}! Assalam-o-Alaikum from VoltGlide Scooty Hub Pakistan. How can we assist you today?`
                 )}`;
 
                 return (
                   <div key={cust.id} className="bg-[#0f172a] rounded-3xl p-5 border border-slate-800 shadow-lg space-y-3 flex flex-col justify-between">
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 p-0.5 flex-shrink-0">
                             <div className="w-full h-full bg-[#0a0f1d] rounded-[9px] flex items-center justify-center font-bold text-cyan-400">
                               {cust.name.charAt(0).toUpperCase()}
                             </div>
                           </div>
-                          <div>
-                            <h4 className="font-bold text-white text-sm">{cust.name}</h4>
-                            <span className="text-[10px] text-slate-500 font-mono">ID: {cust.id}</span>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-white text-sm truncate">{cust.name}</h4>
+                            <span className="text-[10px] text-slate-400 block">
+                              {cust.source} · {cust.ordersCount} Order{cust.ordersCount === 1 ? '' : 's'}
+                            </span>
                           </div>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold">
-                          {cust.ordersCount} Orders
+                        <span className="font-mono tabular-nums text-[11px] font-bold text-emerald-300 shrink-0">
+                          {formatPKR(cust.totalSpent)}
                         </span>
                       </div>
 
-                      <div className="space-y-1 text-xs text-slate-300 pt-1">
+                      <div className="space-y-1.5 text-xs text-slate-300 pt-1">
                         <div className="flex items-center gap-2">
                           <Phone className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
                           <span className="font-mono text-white font-semibold">{cust.phone}</span>
+                          {cust.alternatePhone && (
+                            <span className="text-[11px] text-slate-400 font-mono">· Alt: {cust.alternatePhone}</span>
+                          )}
                         </div>
                         {cust.email && (
                           <div className="flex items-center gap-2 text-slate-400">
@@ -2429,10 +2743,20 @@ export const AdminDashboardPage: React.FC = () => {
                             <span className="truncate">{cust.email}</span>
                           </div>
                         )}
+                        {cust.cnic && (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                            <span className="font-mono text-slate-300">CNIC: {cust.cnic}</span>
+                          </div>
+                        )}
                         {(cust.city || cust.address) && (
                           <div className="flex items-start gap-2 text-slate-400 pt-0.5">
                             <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                            <span className="line-clamp-2">{cust.address ? `${cust.address}, ` : ''}{cust.city}</span>
+                            <span>
+                              {cust.address ? `${cust.address}` : ''}
+                              {cust.areaLandmark ? ` (${cust.areaLandmark})` : ''}
+                              {cust.city ? `${cust.address ? ', ' : ''}${cust.city}` : ''}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -2447,6 +2771,13 @@ export const AdminDashboardPage: React.FC = () => {
                       >
                         <WhatsAppIconSVG className="w-3.5 h-3.5 fill-white" />
                         <span>Chat on WhatsApp</span>
+                      </a>
+                      <a
+                        href={`tel:${cust.phone.replace(/[^0-9+]/g, '')}`}
+                        className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1 transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call</span>
                       </a>
                     </div>
                   </div>
@@ -3300,6 +3631,127 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN FULL CLIENT & ORDER RECEIPT SLIP MODAL */}
+      {selectedOrderSlip && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0e1628] border border-cyan-500/40 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative space-y-5 text-slate-200">
+            <button
+              onClick={() => setSelectedOrderSlip(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <span className="text-2xl font-extrabold tracking-tight text-white font-heading">
+                  VOLT<span className="text-cyan-400">GLIDE</span>
+                </span>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+                  Complete Client & Dispatch Order Slip
+                </p>
+              </div>
+              <div className="text-right pr-8">
+                <p className="font-mono font-extrabold text-cyan-300 text-sm">#{selectedOrderSlip.id}</p>
+                <p className="text-[11px] text-slate-400 font-mono">
+                  {new Date(selectedOrderSlip.createdAt).toLocaleString('en-PK')}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+              <div className="space-y-1">
+                <p className="text-cyan-400 text-[10px] font-bold uppercase">Client Details</p>
+                <p className="font-bold text-white text-sm">{selectedOrderSlip.customerName}</p>
+                <p className="text-slate-200 font-mono">Primary: {selectedOrderSlip.customerPhone}</p>
+                {selectedOrderSlip.alternatePhone && (
+                  <p className="text-slate-300 font-mono">Alternate: {selectedOrderSlip.alternatePhone}</p>
+                )}
+                {selectedOrderSlip.customerEmail && (
+                  <p className="text-slate-300">Email: {selectedOrderSlip.customerEmail}</p>
+                )}
+                {selectedOrderSlip.cnic && (
+                  <p className="text-slate-300 font-mono">CNIC: {selectedOrderSlip.cnic}</p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <p className="text-cyan-400 text-[10px] font-bold uppercase">Delivery & Payment</p>
+                <p className="text-white">{selectedOrderSlip.shippingAddress}</p>
+                {selectedOrderSlip.areaLandmark && (
+                  <p className="text-slate-300">Area / Landmark: {selectedOrderSlip.areaLandmark}</p>
+                )}
+                <p className="text-cyan-300 font-semibold">{selectedOrderSlip.city}, Pakistan</p>
+                <p className="text-slate-300">Payment: <strong>{selectedOrderSlip.paymentMethod}</strong></p>
+                {selectedOrderSlip.notes && (
+                  <p className="text-amber-300">Notes: {selectedOrderSlip.notes}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="border border-slate-800 rounded-2xl overflow-hidden">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="py-2.5 px-4 font-semibold">Scooty Item</th>
+                    <th className="py-2.5 px-3 text-center font-semibold">Qty</th>
+                    <th className="py-2.5 px-4 text-right font-semibold">Rate</th>
+                    <th className="py-2.5 px-4 text-right font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {selectedOrderSlip.items.map((item, i) => (
+                    <tr key={i}>
+                      <td className="py-2.5 px-4">
+                        <p className="font-bold text-white">{item.productName}</p>
+                        {item.selectedColor && (
+                          <span className="text-[11px] text-cyan-300">Color: {item.selectedColor}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-mono">{item.quantity}</td>
+                      <td className="py-2.5 px-4 text-right font-mono">{formatPKR(item.price)}</td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold text-white">
+                        {formatPKR(item.price * item.quantity)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-cyan-500/30">
+              <span className="text-xs text-slate-300">
+                Status: <strong className="text-cyan-300 uppercase">{selectedOrderSlip.status}</strong>
+              </span>
+              <div className="text-right">
+                <span className="text-[11px] text-slate-400 block">Grand Total</span>
+                <span className="text-xl font-extrabold text-white font-mono">
+                  {formatPKR(selectedOrderSlip.totalAmount)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleCopyClientOrder(selectedOrderSlip)}
+                className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-4 h-4 text-cyan-400" />
+                <span>Copy Full Details</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="py-2.5 px-5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Slip</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

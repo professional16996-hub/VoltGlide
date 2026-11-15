@@ -787,16 +787,37 @@ export const CustomerAccountPage: React.FC = () => {
                       ))}
                     </div>
 
-                    {/* Order Details & Address */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/60 text-slate-300">
-                      <div>
-                        <span className="text-slate-500 text-[10px] uppercase font-bold block mb-0.5">Delivery Address:</span>
-                        <p className="text-white">{order.shippingAddress}, {order.city}</p>
+                    {/* Order Details & Complete Client Info */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/60 p-4 rounded-2xl border border-slate-800/60 text-slate-300">
+                      <div className="space-y-1">
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Client Contact & Delivery:</span>
+                        <p className="text-white font-semibold">
+                          {order.customerName} · <span className="font-mono text-cyan-300">{order.customerPhone}</span>
+                          {order.alternatePhone ? ` (Alt: ${order.alternatePhone})` : ''}
+                        </p>
+                        {order.customerEmail && (
+                          <p className="text-slate-300">{order.customerEmail}</p>
+                        )}
+                        {order.cnic && (
+                          <p className="text-slate-400 font-mono text-[11px]">CNIC: {order.cnic}</p>
+                        )}
+                        <p className="text-white">
+                          {order.shippingAddress}
+                          {order.areaLandmark ? ` (${order.areaLandmark})` : ''}, {order.city}
+                        </p>
+                        {order.notes && (
+                          <p className="text-amber-300/90 text-[11px]">Note: {order.notes}</p>
+                        )}
                       </div>
-                      <div className="sm:text-right">
-                        <span className="text-slate-500 text-[10px] uppercase font-bold block mb-0.5">Total Amount:</span>
-                        <p className="text-base font-extrabold text-cyan-400 font-mono">
-                          PKR {order.totalAmount.toLocaleString()}
+                      <div className="sm:text-right flex flex-col justify-between">
+                        <div>
+                          <span className="text-slate-500 text-[10px] uppercase font-bold block mb-0.5">Total Amount:</span>
+                          <p className="text-base font-extrabold text-cyan-400 font-mono">
+                            PKR {order.totalAmount.toLocaleString()}
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-2">
+                          Payment: <strong className="text-slate-200">{order.paymentMethod}</strong>
                         </p>
                       </div>
                     </div>
@@ -1092,18 +1113,30 @@ export const CustomerAccountPage: React.FC = () => {
             </div>
 
             {/* Customer & Shipping Summary */}
-            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+              <div className="space-y-0.5">
                 <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Billed To:</p>
                 <p className="font-bold text-white text-sm">{selectedInvoiceOrder.customerName}</p>
-                <p className="text-slate-300 font-mono">{selectedInvoiceOrder.customerPhone}</p>
+                <p className="text-slate-300 font-mono">Mobile: {selectedInvoiceOrder.customerPhone}</p>
+                {selectedInvoiceOrder.alternatePhone && (
+                  <p className="text-slate-300 font-mono">Alt Phone: {selectedInvoiceOrder.alternatePhone}</p>
+                )}
                 {selectedInvoiceOrder.customerEmail && <p className="text-slate-400">{selectedInvoiceOrder.customerEmail}</p>}
+                {selectedInvoiceOrder.cnic && (
+                  <p className="text-slate-400 font-mono">CNIC: {selectedInvoiceOrder.cnic}</p>
+                )}
               </div>
-              <div>
+              <div className="space-y-0.5">
                 <p className="text-slate-400 text-[10px] font-bold uppercase mb-1">Destination:</p>
                 <p className="text-white">{selectedInvoiceOrder.shippingAddress}</p>
+                {selectedInvoiceOrder.areaLandmark && (
+                  <p className="text-slate-300">Area / Landmark: {selectedInvoiceOrder.areaLandmark}</p>
+                )}
                 <p className="text-cyan-300 font-semibold">{selectedInvoiceOrder.city}, Pakistan</p>
                 <p className="text-slate-400 text-[10px] mt-1">Payment: <strong>{selectedInvoiceOrder.paymentMethod}</strong></p>
+                {selectedInvoiceOrder.notes && (
+                  <p className="text-amber-300 text-[11px] pt-1">Note: {selectedInvoiceOrder.notes}</p>
+                )}
               </div>
             </div>
 

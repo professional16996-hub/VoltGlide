@@ -41,13 +41,29 @@ export const CartDrawer: React.FC = () => {
   } = useApp();
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<{ id: string; total: number } | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<{
+    id: string;
+    total: number;
+    customerName: string;
+    customerPhone: string;
+    alternatePhone?: string;
+    customerEmail?: string;
+    cnic?: string;
+    shippingAddress: string;
+    areaLandmark?: string;
+    city: string;
+    paymentMethod: string;
+    notes?: string;
+  } | null>(null);
 
   // Checkout form state (pre-filled from customer if logged in)
   const [customerName, setCustomerName] = useState(customer?.name || '');
   const [customerPhone, setCustomerPhone] = useState(customer?.phone || '');
+  const [alternatePhone, setAlternatePhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState(customer?.email || '');
+  const [cnic, setCnic] = useState('');
   const [shippingAddress, setShippingAddress] = useState(customer?.address || '');
+  const [areaLandmark, setAreaLandmark] = useState('');
   const [city, setCity] = useState(customer?.city || 'Lahore');
   const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'Bank Transfer / Raast' | 'Online Card'>('Cash on Delivery');
   const [notes, setNotes] = useState('');
@@ -108,10 +124,14 @@ export const CartDrawer: React.FC = () => {
 
     const result = await placeOrder({
       customerId: customer?.id,
+      accountType: customer ? 'Registered' : 'Guest',
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
+      alternatePhone: alternatePhone.trim() || undefined,
       customerEmail: customerEmail.trim() || undefined,
+      cnic: cnic.trim() || undefined,
       shippingAddress: shippingAddress.trim(),
+      areaLandmark: areaLandmark.trim() || undefined,
       city,
       items: orderItems,
       totalAmount: cartTotal,
@@ -121,7 +141,20 @@ export const CartDrawer: React.FC = () => {
 
     setIsSubmitting(false);
     if (result.success && result.orderId) {
-      setCompletedOrder({ id: result.orderId, total: cartTotal });
+      setCompletedOrder({
+        id: result.orderId,
+        total: cartTotal,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        alternatePhone: alternatePhone.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
+        cnic: cnic.trim() || undefined,
+        shippingAddress: shippingAddress.trim(),
+        areaLandmark: areaLandmark.trim() || undefined,
+        city,
+        paymentMethod,
+        notes: notes.trim() || undefined
+      });
       setIsCheckingOut(false);
       setFormErrors({});
     }
@@ -131,7 +164,15 @@ export const CartDrawer: React.FC = () => {
   const getOrderWhatsAppLink = () => {
     if (!completedOrder) return getWhatsAppUrl();
     const whatsappNum = settings?.whatsappNumber || '03210424424';
-    const msg = `Hello VoltGlide Motors!\n\nI have placed an order on your website:\n*Order ID:* ${completedOrder.id}\n*Customer:* ${customerName}\n*Phone:* ${customerPhone}\n*City:* ${city}\n*Address:* ${shippingAddress}\n*Total Amount:* PKR ${completedOrder.total.toLocaleString()}\n*Payment:* ${paymentMethod}\n\nPlease confirm dispatch and delivery timeframe. Thank you!`;
+    const extraLines = [
+      completedOrder.alternatePhone ? `*Alt Phone:* ${completedOrder.alternatePhone}` : '',
+      completedOrder.customerEmail ? `*Email:* ${completedOrder.customerEmail}` : '',
+      completedOrder.cnic ? `*CNIC:* ${completedOrder.cnic}` : '',
+      completedOrder.areaLandmark ? `*Area / Landmark:* ${completedOrder.areaLandmark}` : '',
+      completedOrder.notes ? `*Notes:* ${completedOrder.notes}` : ''
+    ].filter(Boolean).join('\n');
+
+    const msg = `Hello VoltGlide Motors!\n\nI have placed an order on your website:\n*Order ID:* ${completedOrder.id}\n*Customer:* ${completedOrder.customerName}\n*Phone:* ${completedOrder.customerPhone}\n*City:* ${completedOrder.city}\n*Address:* ${completedOrder.shippingAddress}\n${extraLines ? extraLines + '\n' : ''}*Total Amount:* PKR ${completedOrder.total.toLocaleString()}\n*Payment:* ${completedOrder.paymentMethod}\n\nPlease confirm dispatch and delivery timeframe. Thank you!`;
     return getWhatsAppUrl(msg, whatsappNum);
   };
 
@@ -218,17 +259,38 @@ export const CartDrawer: React.FC = () => {
                 <span className="text-slate-400">Order ID:</span>
                 <span className="font-mono font-black text-cyan-400 text-sm">#{completedOrder.id}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-2">
                 <span className="text-slate-400">Customer:</span>
-                <span className="font-bold text-white">{customerName}</span>
+                <span className="font-bold text-white text-right">{completedOrder.customerName}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Mobile Phone:</span>
-                <span className="font-mono text-white">{customerPhone}</span>
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-400">WhatsApp Mobile:</span>
+                <span className="font-mono text-white">{completedOrder.customerPhone}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Destination:</span>
-                <span className="text-white text-right max-w-[200px] truncate">{shippingAddress}, {city}</span>
+              {completedOrder.alternatePhone && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Alternate Phone:</span>
+                  <span className="font-mono text-slate-200">{completedOrder.alternatePhone}</span>
+                </div>
+              )}
+              {completedOrder.customerEmail && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Email:</span>
+                  <span className="text-slate-200 truncate max-w-[200px]">{completedOrder.customerEmail}</span>
+                </div>
+              )}
+              {completedOrder.cnic && (
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">CNIC (Warranty):</span>
+                  <span className="font-mono text-slate-200">{completedOrder.cnic}</span>
+                </div>
+              )}
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-400 shrink-0">Destination:</span>
+                <span className="text-white text-right max-w-[220px]">
+                  {completedOrder.shippingAddress}
+                  {completedOrder.areaLandmark ? ` (${completedOrder.areaLandmark})` : ''}, {completedOrder.city}
+                </span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-white/[0.06]">
                 <span className="text-slate-400">Total Amount:</span>
@@ -236,7 +298,7 @@ export const CartDrawer: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Payment:</span>
-                <span className="text-emerald-400 font-semibold">{paymentMethod}</span>
+                <span className="text-emerald-400 font-semibold">{completedOrder.paymentMethod}</span>
               </div>
             </div>
 
@@ -402,6 +464,35 @@ export const CartDrawer: React.FC = () => {
                 </div>
               </div>
 
+              {/* Alternate Phone & Area / Landmark */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-semibold text-xs">
+                    Alternate / Receiver Phone (Optional)
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="0321-7654321"
+                    value={alternatePhone}
+                    onChange={(e) => setAlternatePhone(e.target.value)}
+                    className="w-full bg-[#0c101d] border border-white/[0.1] rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-semibold text-xs">
+                    Area / Sector / Landmark
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DHA Phase 5 / Near Mosque"
+                    value={areaLandmark}
+                    onChange={(e) => setAreaLandmark(e.target.value)}
+                    className="w-full bg-[#0c101d] border border-white/[0.1] rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs"
+                  />
+                </div>
+              </div>
+
               {/* Delivery Address */}
               <div className="space-y-1">
                 <label className="block text-slate-200 font-semibold text-xs flex items-center gap-1.5">
@@ -411,7 +502,7 @@ export const CartDrawer: React.FC = () => {
                 <textarea
                   required
                   rows={2}
-                  placeholder="House #, Street, Mohalla / Sector, Near Famous Landmark"
+                  placeholder="House #, Street #, Mohalla / Plaza, Block"
                   value={shippingAddress}
                   onChange={(e) => {
                     setShippingAddress(e.target.value);
@@ -429,18 +520,33 @@ export const CartDrawer: React.FC = () => {
                 )}
               </div>
 
-              {/* Email (Optional) */}
-              <div className="space-y-1">
-                <label className="block text-slate-300 font-semibold text-xs">
-                  Email Address (Optional)
-                </label>
-                <input
-                  type="email"
-                  placeholder="your.email@example.com"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  className="w-full bg-[#0c101d] border border-white/[0.1] rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs"
-                />
+              {/* Email & CNIC */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-semibold text-xs">
+                    Email Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="your.email@example.com"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="w-full bg-[#0c101d] border border-white/[0.1] rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-semibold text-xs">
+                    CNIC (Optional · Warranty Card)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="35202-1234567-1"
+                    value={cnic}
+                    onChange={(e) => setCnic(e.target.value)}
+                    className="w-full bg-[#0c101d] border border-white/[0.1] rounded-xl p-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-xs font-mono"
+                  />
+                </div>
               </div>
 
               {/* Payment Method Selector */}

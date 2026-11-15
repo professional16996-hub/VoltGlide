@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Product } from '../../types.ts';
 import { parseProductMetrics } from '../../utils/specParser.ts';
 import { formatPKR } from '../../utils/formatters.ts';
-import { BarChart3, ArrowUpRight } from 'lucide-react';
+import { BarChart3, ArrowUpRight, PieChart } from 'lucide-react';
+import { InteractiveDonutChart } from './SvgCharts.tsx';
 
 interface MarketScatterAnalysisProps {
   products: Product[];
@@ -21,6 +22,7 @@ export const MarketScatterAnalysis: React.FC<MarketScatterAnalysisProps> = ({ pr
   const [yAxisMetric, setYAxisMetric] = useState<'speed' | 'range' | 'efficiency'>('speed');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [circleMetric, setCircleMetric] = useState<'models' | 'avgPrice'>('models');
 
   const points = useMemo(() => {
     return products
@@ -326,6 +328,48 @@ export const MarketScatterAnalysis: React.FC<MarketScatterAnalysisProps> = ({ pr
             </button>
           </div>
         )}
+      </div>
+
+      {/* Interactive Circle / Donut Catalog Segment Chart */}
+      <div className="bg-[#080a11] rounded-xl border border-white/[0.06] p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+          <div className="flex items-center gap-2">
+            <PieChart className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-sm font-bold text-white">Catalog Circle & Donut Distribution</h3>
+          </div>
+          <div className="flex items-center gap-1 p-0.5 bg-[#0f172a] rounded-lg border border-white/[0.08] text-xs">
+            <button
+              type="button"
+              onClick={() => setCircleMetric('models')}
+              className={`px-2.5 py-1 rounded-md font-medium cursor-pointer ${
+                circleMetric === 'models' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              By Model Count
+            </button>
+            <button
+              type="button"
+              onClick={() => setCircleMetric('avgPrice')}
+              className={`px-2.5 py-1 rounded-md font-medium cursor-pointer ${
+                circleMetric === 'avgPrice' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              By Avg Price Tier
+            </button>
+          </div>
+        </div>
+
+        <InteractiveDonutChart
+          slices={categoryBreakdown.map((c) => ({
+            id: c.category,
+            label: c.category,
+            value: circleMetric === 'models' ? c.count : c.avgPrice,
+            color: c.color
+          }))}
+          centerLabel={circleMetric === 'models' ? 'Showroom Fleet' : 'Avg Catalog'}
+          centerValue={circleMetric === 'models' ? `${products.length} Scooties` : `${categoryBreakdown.length} Segments`}
+          valueFormatter={(v) => (circleMetric === 'models' ? `${v} model${v === 1 ? '' : 's'}` : formatPKR(v))}
+        />
       </div>
 
       {/* Category Distribution & Price Band Table */}

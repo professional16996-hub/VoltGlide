@@ -3,6 +3,7 @@ import { Product } from '../../types.ts';
 import { parseProductMetrics } from '../../utils/specParser.ts';
 import { formatPKR } from '../../utils/formatters.ts';
 import { MapPin, Route, ShoppingCart, ArrowUpRight } from 'lucide-react';
+import { RadialGaugeRing } from './SvgCharts.tsx';
 
 interface CityCommuteAnalysisProps {
   products: Product[];
@@ -223,11 +224,13 @@ export const CityCommuteAnalysis: React.FC<CityCommuteAnalysisProps> = ({
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
-                  <span className="text-[11px] text-slate-400 block">Route Fit</span>
-                  <span className="text-xl font-bold font-mono tabular-nums text-emerald-400">
-                    {item.matchScore}%
-                  </span>
+                <div className="shrink-0">
+                  <RadialGaugeRing
+                    percentage={item.matchScore}
+                    label="Route Fit"
+                    color={item.matchScore >= 85 ? '#10b981' : item.matchScore >= 65 ? '#22d3ee' : '#f59e0b'}
+                    size={64}
+                  />
                 </div>
               </div>
 

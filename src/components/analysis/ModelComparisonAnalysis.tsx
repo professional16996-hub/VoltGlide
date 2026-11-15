@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Product } from '../../types.ts';
 import { parseProductMetrics } from '../../utils/specParser.ts';
 import { formatPKR } from '../../utils/formatters.ts';
-import { GitCompare, Trophy, ArrowUpRight } from 'lucide-react';
+import { InteractiveRadarChart, RadarSeries } from './SvgCharts.tsx';
+import { GitCompare, Trophy, ArrowUpRight, Radar, BarChart3, AlignLeft } from 'lucide-react';
 
 interface ModelComparisonAnalysisProps {
   products: Product[];
@@ -15,6 +16,7 @@ export const ModelComparisonAnalysis: React.FC<ModelComparisonAnalysisProps> = (
   const [modelAId, setModelAId] = useState<string>(() => products[0]?.id || '');
   const [modelBId, setModelBId] = useState<string>(() => products[1]?.id || products[0]?.id || '');
   const [modelCId, setModelCId] = useState<string>(() => products[4]?.id || '');
+  const [chartView, setChartView] = useState<'radar' | 'columns' | 'bars'>('radar');
 
   const selectedModels = useMemo(() => {
     const list: Product[] = [];
@@ -70,7 +72,7 @@ export const ModelComparisonAnalysis: React.FC<ModelComparisonAnalysisProps> = (
     );
   }
 
-  // Normalized dimensions for Grouped Bar Chart (0-100 scale relative to catalog maximums)
+  // Normalized dimensions for Radar / Column / Bar Chart (0-100 scale relative to catalog maximums)
   const allMetrics = products.map((p) => ({ p, m: parseProductMetrics(p) }));
   const maxSpeedAll = Math.max(...allMetrics.map((x) => x.m.topSpeedKmh), 100);
   const maxRangeAll = Math.max(...allMetrics.map((x) => x.m.rangeKm), 150);
@@ -104,6 +106,14 @@ export const ModelComparisonAnalysis: React.FC<ModelComparisonAnalysisProps> = (
       getRaw: (item: typeof enriched[number]) => `${item.product.rating.toFixed(1)} / 5`
     }
   ];
+
+  const radarSeries: RadarSeries[] = enriched.map((item) => ({
+    id: item.product.id,
+    label: item.product.name,
+    color: item.color,
+    values: dimensions.map((d) => Math.min(100, Math.max(10, d.getValue(item)))),
+    rawValues: dimensions.map((d) => d.getRaw(item))
+  }));
 
   // Find metric leaders for matrix callouts
   const bestPriceId = [...enriched].sort((a, b) => a.product.price - b.product.price)[0]?.product.id;
@@ -200,48 +210,133 @@ export const ModelComparisonAnalysis: React.FC<ModelComparisonAnalysisProps> = (
         </div>
       </div>
 
-      {/* Horizontal Normalized Benchmark Chart */}
+      {/* Multi-Mode Normalized Capability Chart (Radar / Vertical Columns / Bars) */}
       <div className="bg-[#080a11] rounded-xl border border-white/[0.06] p-5 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-bold text-white">Normalized Capability Index (0–100 Catalog Benchmark)</h3>
-          <div className="flex flex-wrap items-center gap-4 text-xs">
-            {enriched.map((item) => (
-              <span key={item.product.id} className="inline-flex items-center gap-2 text-slate-200 font-medium">
-                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: item.color }}></span>
-                <span>{item.product.name}</span>
-              </span>
-            ))}
+          <div>
+            <h3 className="text-sm font-bold text-white">Normalized Capability Index (0–100 Catalog Benchmark)</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Switch chart visualization between Spider Radar, Vertical Columns, and Horizontal Bars</p>
+          </div>
+
+          <div className="flex items-center gap-1 p-1 bg-[#0f172a] rounded-lg border border-white/[0.08] text-xs">
+            <button
+              type="button"
+              onClick={() => setChartView('radar')}
+              className={`px-2.5 py-1.5 rounded-md font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                chartView === 'radar' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Radar className="w-3.5 h-3.5" />
+              <span>Radar Web</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartView('columns')}
+              className={`px-2.5 py-1.5 rounded-md font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                chartView === 'columns' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Columns</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartView('bars')}
+              className={`px-2.5 py-1.5 rounded-md font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                chartView === 'bars' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <AlignLeft className="w-3.5 h-3.5" />
+              <span>Bars</span>
+            </button>
           </div>
         </div>
 
-        <div className="space-y-4">
-          {dimensions.map((dim) => (
-            <div key={dim.label} className="space-y-1.5">
-              <div className="text-xs font-medium text-slate-300">{dim.label}</div>
-              <div className="space-y-1.5">
-                {enriched.map((item) => {
-                  const pct = Math.min(100, Math.max(8, dim.getValue(item)));
-                  return (
-                    <div key={item.product.id} className="flex items-center gap-3">
-                      <div className="w-32 sm:w-44 text-[11px] text-slate-400 truncate">
-                        {item.product.name}
-                      </div>
-                      <div className="flex-1 h-2.5 bg-white/[0.04] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{ width: `${pct}%`, backgroundColor: item.color }}
-                        />
-                      </div>
-                      <div className="w-24 text-right text-xs font-mono tabular-nums text-white font-semibold">
-                        {dim.getRaw(item)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+        {chartView === 'radar' && (
+          <InteractiveRadarChart
+            axes={dimensions.map((d) => d.label)}
+            series={radarSeries}
+          />
+        )}
+
+        {chartView === 'columns' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              {enriched.map((item) => (
+                <span key={item.product.id} className="inline-flex items-center gap-2 text-slate-200 font-medium">
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: item.color }} />
+                  <span>{item.product.name}</span>
+                </span>
+              ))}
             </div>
-          ))}
-        </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 pt-2">
+              {dimensions.map((dim) => (
+                <div key={dim.label} className="bg-[#0f172a] border border-white/[0.06] rounded-xl p-3 flex flex-col justify-between gap-3">
+                  <div className="h-36 flex items-end justify-center gap-2 border-b border-white/[0.06] pb-2">
+                    {enriched.map((item) => {
+                      const pct = Math.min(100, Math.max(12, dim.getValue(item)));
+                      return (
+                        <div key={item.product.id} className="flex flex-col items-center gap-1 h-full justify-end flex-1">
+                          <span className="text-[10px] font-mono tabular-nums text-slate-300">{pct}</span>
+                          <div
+                            className="w-full max-w-[26px] rounded-t-md transition-all duration-300"
+                            style={{ height: `${pct}%`, backgroundColor: item.color }}
+                            title={`${item.product.name}: ${dim.getRaw(item)}`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs font-semibold text-white">{dim.label}</div>
+                    <div className="text-[10px] text-slate-400 font-mono tabular-nums mt-0.5 truncate">
+                      {enriched.map((item) => dim.getRaw(item)).join(' · ')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {chartView === 'bars' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              {enriched.map((item) => (
+                <span key={item.product.id} className="inline-flex items-center gap-2 text-slate-200 font-medium">
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ backgroundColor: item.color }} />
+                  <span>{item.product.name}</span>
+                </span>
+              ))}
+            </div>
+            {dimensions.map((dim) => (
+              <div key={dim.label} className="space-y-1.5">
+                <div className="text-xs font-medium text-slate-300">{dim.label}</div>
+                <div className="space-y-1.5">
+                  {enriched.map((item) => {
+                    const pct = Math.min(100, Math.max(8, dim.getValue(item)));
+                    return (
+                      <div key={item.product.id} className="flex items-center gap-3">
+                        <div className="w-32 sm:w-44 text-[11px] text-slate-400 truncate">
+                          {item.product.name}
+                        </div>
+                        <div className="flex-1 h-2.5 bg-white/[0.04] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{ width: `${pct}%`, backgroundColor: item.color }}
+                          />
+                        </div>
+                        <div className="w-24 text-right text-xs font-mono tabular-nums text-white font-semibold">
+                          {dim.getRaw(item)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Specification Comparison Table */}

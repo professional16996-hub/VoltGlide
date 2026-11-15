@@ -80,13 +80,20 @@ service cloud.firestore {
           'totalAmount', 'paymentMethod', 'status', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'id', 'customerId', 'customerName', 'customerPhone', 'customerEmail',
-          'shippingAddress', 'city', 'items', 'totalAmount', 'paymentMethod',
+          'id', 'customerId', 'accountType', 'customerName', 'customerPhone',
+          'alternatePhone', 'customerEmail', 'cnic', 'shippingAddress',
+          'areaLandmark', 'city', 'items', 'totalAmount', 'paymentMethod',
           'notes', 'status', 'createdAt', 'updatedAt'
         ])
         && isValidId(data.id)
         && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
         && data.customerPhone is string && data.customerPhone.size() >= 5 && data.customerPhone.size() <= 40
+        && (!('alternatePhone' in data) || (data.alternatePhone is string && data.alternatePhone.size() <= 40))
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 120))
+        && (!('cnic' in data) || (data.cnic is string && data.cnic.size() <= 30))
+        && (!('areaLandmark' in data) || (data.areaLandmark is string && data.areaLandmark.size() <= 160))
+        && (!('accountType' in data) || data.accountType in ['Registered', 'Guest'])
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 300))
         && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
         && data.shippingAddress is string && data.shippingAddress.size() >= 1 && data.shippingAddress.size() <= 400
         && data.totalAmount is number && data.totalAmount >= 0

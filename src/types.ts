@@ -64,10 +64,14 @@ export interface CustomerUser {
 export interface Order {
   id: string;
   customerId?: string;
+  accountType?: 'Registered' | 'Guest';
   customerName: string;
   customerPhone: string;
+  alternatePhone?: string;
   customerEmail: string;
+  cnic?: string;
   shippingAddress: string;
+  areaLandmark?: string;
   city: string;
   items: OrderItem[];
   totalAmount: number;
