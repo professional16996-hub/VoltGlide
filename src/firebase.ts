@@ -13,9 +13,17 @@ import {
   updateDoc
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Order, SiteSettings, Product, Banner } from './types.ts';
+import {
+  Order,
+  SiteSettings,
+  Product,
+  Banner,
+  PushSubscriptionRecord,
+  PushNotificationRecord,
+  DeviceNotificationState
+} from './types.ts';
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
@@ -578,4 +586,227 @@ export function subscribeToCloudBanners(onUpdate: (banners: Banner[]) => void) {
       console.warn('Cloud banners listener warning:', error);
     }
   );
+}
+
+// ================= PERMANENT FCM & PUSH NOTIFICATIONS CLOUD SYNC =================
+
+export async function getFcmRegistrationToken(
+  vapidKey: string,
+  serviceWorkerRegistration: ServiceWorkerRegistration
+): Promise<string | undefined> {
+  try {
+    const messagingMod = await import('firebase/messaging');
+    const supported = await messagingMod.isSupported();
+    if (!supported) return undefined;
+    const messaging = messagingMod.getMessaging(app);
+    const token = await messagingMod.getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration
+    });
+    return token || undefined;
+  } catch (err) {
+    // Gracefully fall back to standard W3C WebPush PushSubscription endpoint (also routes via fcm.googleapis.com on Chrome/Android)
+    console.info('FCM optional token fallback to WebPush endpoint:', err instanceof Error ? err.message : String(err));
+    return undefined;
+  }
+}
+
+function sanitizePushSubscriptionForCloud(sub: PushSubscriptionRecord) {
+  const safeId = String(sub.id || `sub_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  const validPlatforms = ['Android', 'iOS', 'Desktop', 'Mobile'] as const;
+  const validStatuses = ['active', 'expired', 'unsubscribed'] as const;
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    deviceId: String(sub.deviceId || safeId).slice(0, 128),
+    endpoint: String(sub.endpoint || '').slice(0, 2000),
+    p256dh: String(sub.p256dh || '').slice(0, 500),
+    auth: String(sub.auth || '').slice(0, 200),
+    platform: validPlatforms.includes(sub.platform as any) ? sub.platform : 'Desktop',
+    browserLabel: String(sub.browserLabel || 'Web Browser').slice(0, 160),
+    status: validStatuses.includes(sub.status as any) ? sub.status : 'active',
+    createdAt: String(sub.createdAt || new Date().toISOString()).slice(0, 60),
+    lastVerifiedAt: String(sub.lastVerifiedAt || new Date().toISOString()).slice(0, 60),
+    updatedAt: serverTimestamp()
+  };
+
+  if (sub.fcmToken) payload.fcmToken = String(sub.fcmToken).slice(0, 500);
+  if (sub.customerId) payload.customerId = String(sub.customerId).slice(0, 128);
+  if (sub.customerName) payload.customerName = String(sub.customerName).slice(0, 120);
+  if (sub.customerPhone) payload.customerPhone = String(sub.customerPhone).slice(0, 40);
+  if (sub.failureReason) payload.failureReason = String(sub.failureReason).slice(0, 300);
+
+  return { safeId, payload };
+}
+
+export async function saveCloudPushSubscription(sub: PushSubscriptionRecord): Promise<boolean> {
+  const { safeId, payload } = sanitizePushSubscriptionForCloud(sub);
+  try {
+    await setDoc(doc(db, 'push_subscriptions', safeId), payload);
+    return true;
+  } catch (error) {
+    console.warn('Cloud push subscription save warning:', error);
+    return false;
+  }
+}
+
+export async function fetchCloudPushSubscriptions(): Promise<PushSubscriptionRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, 'push_subscriptions'));
+    const list: PushSubscriptionRecord[] = [];
+    snap.forEach((docSnap) => {
+      list.push(docSnap.data() as PushSubscriptionRecord);
+    });
+    return list.sort((a, b) => new Date(b.lastVerifiedAt || b.createdAt).getTime() - new Date(a.lastVerifiedAt || a.createdAt).getTime());
+  } catch (error) {
+    console.warn('Cloud push subscriptions fetch warning:', error);
+    return [];
+  }
+}
+
+export function subscribeToCloudPushSubscriptions(onUpdate: (subs: PushSubscriptionRecord[]) => void) {
+  return onSnapshot(
+    collection(db, 'push_subscriptions'),
+    (snap) => {
+      const list: PushSubscriptionRecord[] = [];
+      snap.forEach((docSnap) => {
+        list.push(docSnap.data() as PushSubscriptionRecord);
+      });
+      list.sort((a, b) => new Date(b.lastVerifiedAt || b.createdAt).getTime() - new Date(a.lastVerifiedAt || a.createdAt).getTime());
+      onUpdate(list);
+    },
+    (error) => {
+      console.warn('Cloud push subscriptions listener warning:', error);
+    }
+  );
+}
+
+export async function deleteCloudPushSubscription(subId: string): Promise<boolean> {
+  const safeId = subId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  try {
+    await deleteDoc(doc(db, 'push_subscriptions', safeId));
+    return true;
+  } catch (error) {
+    console.warn('Cloud push subscription delete warning:', error);
+    return false;
+  }
+}
+
+function sanitizeNotificationForCloud(notif: PushNotificationRecord) {
+  const safeId = String(notif.id || `notif_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  const validCategories = ['offer', 'order', 'new_arrival', 'announcement', 'general'] as const;
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    title: String(notif.title || 'VoltGlide Alert').trim().slice(0, 160) || 'VoltGlide Alert',
+    body: String(notif.body || '').trim().slice(0, 800) || 'New update from VoltGlide Scooty Hub.',
+    category: validCategories.includes(notif.category as any) ? notif.category : 'general',
+    url: String(notif.url || '/').trim().slice(0, 300) || '/',
+    targetType: notif.targetType === 'customer' ? 'customer' : 'all',
+    sentBy: notif.sentBy === 'System' ? 'System' : 'Admin',
+    sentCount: Math.max(0, Number(notif.sentCount) || 0),
+    failedCount: Math.max(0, Number(notif.failedCount) || 0),
+    expiredCount: Math.max(0, Number(notif.expiredCount) || 0),
+    createdAt: String(notif.createdAt || new Date().toISOString()).slice(0, 60),
+    updatedAt: serverTimestamp()
+  };
+
+  if (notif.imageUrl && notif.imageUrl.length <= 2000) {
+    payload.imageUrl = String(notif.imageUrl).slice(0, 2000);
+  }
+  if (notif.targetCustomerId) {
+    payload.targetCustomerId = String(notif.targetCustomerId).slice(0, 128);
+  }
+  if (notif.targetPhone) {
+    payload.targetPhone = String(notif.targetPhone).slice(0, 40);
+  }
+
+  return { safeId, payload };
+}
+
+export async function saveCloudNotification(notif: PushNotificationRecord): Promise<boolean> {
+  const { safeId, payload } = sanitizeNotificationForCloud(notif);
+  try {
+    await setDoc(doc(db, 'notifications', safeId), payload);
+    return true;
+  } catch (error) {
+    console.warn('Cloud notification save warning:', error);
+    return false;
+  }
+}
+
+export async function fetchCloudNotifications(): Promise<PushNotificationRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, 'notifications'));
+    const list: PushNotificationRecord[] = [];
+    snap.forEach((docSnap) => {
+      list.push(docSnap.data() as PushNotificationRecord);
+    });
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.warn('Cloud notifications fetch warning:', error);
+    return [];
+  }
+}
+
+export function subscribeToCloudNotifications(onUpdate: (items: PushNotificationRecord[]) => void) {
+  return onSnapshot(
+    collection(db, 'notifications'),
+    (snap) => {
+      const list: PushNotificationRecord[] = [];
+      snap.forEach((docSnap) => {
+        list.push(docSnap.data() as PushNotificationRecord);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onUpdate(list);
+    },
+    (error) => {
+      console.warn('Cloud notifications listener warning:', error);
+    }
+  );
+}
+
+export async function deleteCloudNotification(notifId: string): Promise<boolean> {
+  const safeId = notifId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  try {
+    await deleteDoc(doc(db, 'notifications', safeId));
+    return true;
+  } catch (error) {
+    console.warn('Cloud notification delete warning:', error);
+    return false;
+  }
+}
+
+export async function fetchCloudDeviceNotificationState(deviceId: string): Promise<DeviceNotificationState | null> {
+  const safeId = deviceId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  if (!safeId) return null;
+  try {
+    const snap = await getDocFromServer(doc(db, 'device_notification_state', safeId));
+    if (snap.exists()) {
+      return snap.data() as DeviceNotificationState;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Cloud device notification state fetch warning:', error);
+    return null;
+  }
+}
+
+export async function saveCloudDeviceNotificationState(state: DeviceNotificationState): Promise<boolean> {
+  const safeId = String(state.deviceId || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+  if (!safeId) return false;
+  try {
+    const payload: Record<string, unknown> = {
+      deviceId: safeId,
+      readIds: Array.isArray(state.readIds) ? state.readIds.slice(-450) : [],
+      dismissedIds: Array.isArray(state.dismissedIds) ? state.dismissedIds.slice(-450) : [],
+      updatedAt: serverTimestamp()
+    };
+    if (state.clearedBefore) {
+      payload.clearedBefore = String(state.clearedBefore).slice(0, 60);
+    }
+    await setDoc(doc(db, 'device_notification_state', safeId), payload);
+    return true;
+  } catch (error) {
+    console.warn('Cloud device notification state save warning:', error);
+    return false;
+  }
 }

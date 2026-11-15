@@ -9,6 +9,7 @@ import { Navbar } from './components/Navbar.tsx';
 import { Footer } from './components/Footer.tsx';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp.tsx';
 import { CartDrawer } from './components/CartDrawer.tsx';
+import { PushOptInBanner } from './components/PushOptInBanner.tsx';
 
 // Pages
 import { HomePage } from './pages/HomePage.tsx';
@@ -73,6 +74,9 @@ const MainContent: React.FC = () => {
 
       {/* Official WhatsApp Floating Widget (on every page) */}
       <FloatingWhatsApp />
+
+      {/* Non-intrusive Opt-in / Expired Renewal Banner for Background Push */}
+      <PushOptInBanner />
 
       {/* Comprehensive Showroom Footer */}
       <Footer />

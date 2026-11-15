@@ -150,3 +150,49 @@ export interface SiteSettings {
   showrooms: ShowroomAddress[];
 }
 
+export type PushNotificationCategory = 'offer' | 'order' | 'new_arrival' | 'announcement' | 'general';
+export type PushSubscriptionStatus = 'active' | 'expired' | 'unsubscribed';
+export type PushPlatform = 'Android' | 'iOS' | 'Desktop' | 'Mobile';
+
+export interface PushSubscriptionRecord {
+  id: string;
+  deviceId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  fcmToken?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  platform: PushPlatform;
+  browserLabel: string;
+  status: PushSubscriptionStatus;
+  failureReason?: string;
+  createdAt: string;
+  lastVerifiedAt: string;
+}
+
+export interface PushNotificationRecord {
+  id: string;
+  title: string;
+  body: string;
+  category: PushNotificationCategory;
+  url: string;
+  imageUrl?: string;
+  targetType: 'all' | 'customer';
+  targetCustomerId?: string;
+  targetPhone?: string;
+  sentBy: 'Admin' | 'System';
+  sentCount: number;
+  failedCount: number;
+  expiredCount: number;
+  createdAt: string;
+}
+
+export interface DeviceNotificationState {
+  deviceId: string;
+  readIds: string[];
+  dismissedIds: string[];
+  clearedBefore?: string;
+}
+

@@ -24,7 +24,8 @@ import {
   ArrowRight,
   RefreshCw,
   FileText,
-  X
+  X,
+  BellRing
 } from 'lucide-react';
 import { Order } from '../types.ts';
 
@@ -44,7 +45,11 @@ export const CustomerAccountPage: React.FC = () => {
     wishlist,
     addToCart,
     settings,
-    showToast
+    showToast,
+    pushState,
+    isPushLoading,
+    enablePermanentPush,
+    disablePermanentPush
   } = useApp();
 
   // Mode for unauthenticated user: 'login' | 'register'
@@ -938,6 +943,48 @@ export const CustomerAccountPage: React.FC = () => {
               {isUpdatingProfile ? 'Saving...' : 'Save Profile Changes'}
             </button>
           </form>
+
+          {/* Permanent Background Push Notification Card */}
+          <div className="pt-5 border-t border-slate-800 space-y-3">
+            <div className="flex items-start justify-between gap-4 flex-col sm:flex-row sm:items-center">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-cyan-400" />
+                  <span>Permanent Background Order & Offer Alerts</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {pushState.status === 'active'
+                    ? `Active on ${pushState.browserLabel}. You stay subscribed even after logout, closing the website, or restarting your phone.`
+                    : pushState.status === 'expired'
+                    ? 'Your browser push subscription expired. Tap Re-subscribe to restore instant order alerts.'
+                    : 'Receive instant background notifications whenever your order status updates or new discounts launch.'}
+                </p>
+              </div>
+              {pushState.status === 'active' ? (
+                <button
+                  type="button"
+                  onClick={disablePermanentPush}
+                  disabled={isPushLoading}
+                  className="py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  Pause Alerts
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={enablePermanentPush}
+                  disabled={isPushLoading}
+                  className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white text-xs font-bold shadow-lg shadow-cyan-500/20 cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {isPushLoading
+                    ? 'Activating...'
+                    : pushState.status === 'expired'
+                    ? 'Re-subscribe Now'
+                    : 'Enable Push Alerts'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

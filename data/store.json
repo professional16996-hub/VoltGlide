@@ -567,5 +567,20 @@
       "createdAt": "2026-11-11T18:13:25.618Z"
     }
   ],
-  "adminPassword": "admin12345"
+  "adminPassword": "admin12345",
+  "pushSubscriptions": [],
+  "notifications": [],
+  "deviceNotificationStates": {
+    "dev_test_verify_push_01": {
+      "deviceId": "dev_test_verify_push_01",
+      "readIds": [],
+      "dismissedIds": [],
+      "clearedBefore": "2026-11-15T18:03:37.366Z"
+    }
+  },
+  "vapidKeys": {
+    "publicKey": "BCy4NGCEhIMn9LRuRNV1rTt4Jx8ferex3cwNsBpcty3gwdS_BCrSY3TbKU4yFO49eCiKM9ny2Y37qrNygOkJb0I",
+    "privateKey": "drr1FJLBBXh6w4UIjvLHvzptm-tryOPXd6oXROaHIx8",
+    "subject": "mailto:sales@voltglide.com"
+  }
 }

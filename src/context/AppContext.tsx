@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
-import { Product, CartItem, Review, Banner, Order, SiteSettings, CustomerUser } from '../types.ts';
+import {
+  Product,
+  CartItem,
+  Review,
+  Banner,
+  Order,
+  SiteSettings,
+  CustomerUser,
+  PushNotificationRecord
+} from '../types.ts';
 import { DEFAULT_PRODUCTS, DEFAULT_BANNERS, DEFAULT_REVIEWS, DEFAULT_SETTINGS } from '../data/defaultData.ts';
 import {
   saveCloudSiteSettings,
@@ -8,8 +17,22 @@ import {
   fetchCloudOrders,
   subscribeToCloudOrders,
   subscribeToCloudProducts,
-  subscribeToCloudBanners
+  subscribeToCloudBanners,
+  subscribeToCloudNotifications,
+  fetchCloudDeviceNotificationState,
+  saveCloudDeviceNotificationState
 } from '../firebase.ts';
+import {
+  PushClientState,
+  detectPushPlatform,
+  getBrowserLabel,
+  getOrCreatePersistentDeviceId,
+  inspectAndSyncPushState,
+  isIosSafariWithoutPwa,
+  isWebPushSupported,
+  subscribeToPermanentPush,
+  unsubscribeFromPermanentPush
+} from '../services/pushService.ts';
 
 function normalizePhonePK(phone?: string): string {
   const digits = (phone || '').replace(/[^0-9]/g, '');
@@ -95,6 +118,20 @@ interface AppContextType {
 
   // Toast
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+
+  // Permanent Push Notifications & History
+  pushState: PushClientState;
+  isPushLoading: boolean;
+  notifications: PushNotificationRecord[];
+  readNotificationIds: string[];
+  unreadNotificationCount: number;
+  enablePermanentPush: () => Promise<boolean>;
+  disablePermanentPush: () => Promise<void>;
+  refreshNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  deleteUserNotification: (id: string) => Promise<void>;
+  clearUserNotificationHistory: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1071,6 +1108,285 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     navigate('home');
   };
 
+  // ================= PERMANENT PUSH NOTIFICATIONS & PERSISTENT HISTORY =================
+  const [pushState, setPushState] = useState<PushClientState>(() => ({
+    supported: isWebPushSupported(),
+    permission: typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
+    status: 'none',
+    remembered: typeof localStorage !== 'undefined' && localStorage.getItem('voltglide_push_remembered') === 'true',
+    isExpired: false,
+    platform: detectPushPlatform(),
+    browserLabel: getBrowserLabel(),
+    iosNeedsHomeScreen: isIosSafariWithoutPwa()
+  }));
+  const [isPushLoading, setIsPushLoading] = useState(false);
+  const [notifications, setNotifications] = useState<PushNotificationRecord[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_notif_read_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_notif_dismissed_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [clearedBeforeIso, setClearedBeforeIso] = useState<string>(() => {
+    try {
+      return localStorage.getItem('voltglide_notif_cleared_before') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Persist local notification read/dismissed cache (separate from subscriptions!)
+  useEffect(() => {
+    try {
+      localStorage.setItem('voltglide_notif_read_ids', JSON.stringify(readNotificationIds.slice(-450)));
+    } catch {}
+  }, [readNotificationIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('voltglide_notif_dismissed_ids', JSON.stringify(dismissedNotificationIds.slice(-450)));
+    } catch {}
+  }, [dismissedNotificationIds]);
+
+  useEffect(() => {
+    try {
+      if (clearedBeforeIso) {
+        localStorage.setItem('voltglide_notif_cleared_before', clearedBeforeIso);
+      }
+    } catch {}
+  }, [clearedBeforeIso]);
+
+  const filterNotificationsForCurrentUser = useCallback(
+    (
+      rawList: PushNotificationRecord[],
+      dismissedList: string[],
+      clearedBefore: string
+    ) => {
+      const dismissedSet = new Set(dismissedList);
+      const clearedMs = clearedBefore ? new Date(clearedBefore).getTime() : 0;
+      const phoneNorm = normalizePhonePK(customer?.phone);
+      return rawList.filter((n) => {
+        if (dismissedSet.has(n.id)) return false;
+        if (clearedMs && new Date(n.createdAt).getTime() <= clearedMs) return false;
+        if (n.targetType === 'customer') {
+          const idMatch = customer?.id && n.targetCustomerId === customer.id;
+          const phoneMatch = phoneNorm && normalizePhonePK(n.targetPhone) === phoneNorm;
+          return Boolean(idMatch || phoneMatch);
+        }
+        return true;
+      });
+    },
+    [customer]
+  );
+
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const deviceId = await getOrCreatePersistentDeviceId();
+      const qs = new URLSearchParams({
+        deviceId,
+        ...(customer?.id ? { customerId: customer.id } : {}),
+        ...(customer?.phone ? { customerPhone: customer.phone } : {})
+      });
+      const res = await fetch(`/api/notifications?${qs.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && Array.isArray(json.data)) {
+          setNotifications(json.data);
+          if (Array.isArray(json.readIds)) {
+            setReadNotificationIds((prev) => Array.from(new Set([...prev, ...json.readIds])));
+          }
+          return;
+        }
+      }
+    } catch {}
+  }, [customer]);
+
+  // Verify existing push subscription on boot and whenever customer logs in (NEVER clears on logout)
+  useEffect(() => {
+    let cancelled = false;
+    inspectAndSyncPushState(customer)
+      .then((nextState) => {
+        if (!cancelled) setPushState(nextState);
+      })
+      .catch(() => {});
+
+    getOrCreatePersistentDeviceId()
+      .then(async (deviceId) => {
+        const cloudState = await fetchCloudDeviceNotificationState(deviceId);
+        if (!cancelled && cloudState) {
+          if (Array.isArray(cloudState.readIds)) {
+            setReadNotificationIds((prev) => Array.from(new Set([...prev, ...cloudState.readIds])));
+          }
+          if (Array.isArray(cloudState.dismissedIds)) {
+            setDismissedNotificationIds((prev) => Array.from(new Set([...prev, ...cloudState.dismissedIds])));
+          }
+          if (cloudState.clearedBefore) {
+            setClearedBeforeIso(cloudState.clearedBefore);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customer]);
+
+  // Real-time Firestore notification listener + backend sync
+  useEffect(() => {
+    refreshNotifications();
+    const unsub = subscribeToCloudNotifications((cloudNotifs) => {
+      setNotifications((prev) => {
+        const mergedMap = new Map<string, PushNotificationRecord>();
+        for (const n of prev) mergedMap.set(n.id, n);
+        for (const n of cloudNotifs) mergedMap.set(n.id, n);
+        const merged = Array.from(mergedMap.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        return filterNotificationsForCurrentUser(merged, dismissedNotificationIds, clearedBeforeIso);
+      });
+    });
+    return () => unsub();
+  }, [refreshNotifications, filterNotificationsForCurrentUser, dismissedNotificationIds, clearedBeforeIso]);
+
+  // Listen for Service Worker messages (incoming push & click navigation)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    const handleSwMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'PUSH_NOTIFICATION_RECEIVED') {
+        refreshNotifications();
+      } else if (msg.type === 'PUSH_NOTIFICATION_CLICKED') {
+        refreshNotifications();
+        if (typeof msg.url === 'string' && msg.url.startsWith('/')) {
+          const clean = msg.url.replace(/^\/+/, '');
+          if (clean) navigate(clean);
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+  }, [refreshNotifications]);
+
+  const enablePermanentPush = async (): Promise<boolean> => {
+    setIsPushLoading(true);
+    try {
+      const res = await subscribeToPermanentPush(customer);
+      setPushState(res.state);
+      showToast(res.message, res.success ? 'success' : 'error');
+      return res.success;
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  const disablePermanentPush = async (): Promise<void> => {
+    setIsPushLoading(true);
+    try {
+      const next = await unsubscribeFromPermanentPush();
+      setPushState(next);
+      showToast('Push notifications paused on this device.', 'info');
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  const markNotificationRead = async (id: string): Promise<void> => {
+    const nextRead = Array.from(new Set([...readNotificationIds, id]));
+    setReadNotificationIds(nextRead);
+    const deviceId = await getOrCreatePersistentDeviceId();
+    fetch('/api/notifications/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, action: 'mark_read', notificationId: id })
+    }).catch(() => {});
+    saveCloudDeviceNotificationState({
+      deviceId,
+      readIds: nextRead,
+      dismissedIds: dismissedNotificationIds,
+      ...(clearedBeforeIso ? { clearedBefore: clearedBeforeIso } : {})
+    }).catch(() => {});
+  };
+
+  const markAllNotificationsRead = async (): Promise<void> => {
+    const ids = notifications.map((n) => n.id);
+    const nextRead = Array.from(new Set([...readNotificationIds, ...ids]));
+    setReadNotificationIds(nextRead);
+    const deviceId = await getOrCreatePersistentDeviceId();
+    fetch('/api/notifications/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, action: 'mark_all_read', allNotificationIds: ids })
+    }).catch(() => {});
+    saveCloudDeviceNotificationState({
+      deviceId,
+      readIds: nextRead,
+      dismissedIds: dismissedNotificationIds,
+      ...(clearedBeforeIso ? { clearedBefore: clearedBeforeIso } : {})
+    }).catch(() => {});
+  };
+
+  // Deletes one notification from this user's history ONLY — NEVER deletes push subscriptions!
+  const deleteUserNotification = async (id: string): Promise<void> => {
+    const nextDismissed = Array.from(new Set([...dismissedNotificationIds, id]));
+    const nextRead = Array.from(new Set([...readNotificationIds, id]));
+    setDismissedNotificationIds(nextDismissed);
+    setReadNotificationIds(nextRead);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+    const deviceId = await getOrCreatePersistentDeviceId();
+    fetch('/api/notifications/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, action: 'dismiss', notificationId: id })
+    }).catch(() => {});
+    saveCloudDeviceNotificationState({
+      deviceId,
+      readIds: nextRead,
+      dismissedIds: nextDismissed,
+      ...(clearedBeforeIso ? { clearedBefore: clearedBeforeIso } : {})
+    }).catch(() => {});
+  };
+
+  // Clears user's notification inbox history ONLY — NEVER deletes push subscriptions!
+  const clearUserNotificationHistory = async (): Promise<void> => {
+    const ids = notifications.map((n) => n.id);
+    const nowIso = new Date().toISOString();
+    const nextDismissed = Array.from(new Set([...dismissedNotificationIds, ...ids]));
+    const nextRead = Array.from(new Set([...readNotificationIds, ...ids]));
+    setDismissedNotificationIds(nextDismissed);
+    setReadNotificationIds(nextRead);
+    setClearedBeforeIso(nowIso);
+    setNotifications([]);
+
+    const deviceId = await getOrCreatePersistentDeviceId();
+    fetch('/api/notifications/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId, action: 'clear_history', allNotificationIds: ids })
+    }).catch(() => {});
+    saveCloudDeviceNotificationState({
+      deviceId,
+      readIds: nextRead,
+      dismissedIds: nextDismissed,
+      clearedBefore: nowIso
+    }).catch(() => {});
+    showToast('Notification history cleared (your push subscription stays active).', 'info');
+  };
+
+  const unreadNotificationCount = notifications.filter((n) => !readNotificationIds.includes(n.id)).length;
+
   return (
     <AppContext.Provider
       value={{
@@ -1124,7 +1440,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateSettings,
         adminLogin,
         adminLogout,
-        showToast
+        showToast,
+        pushState,
+        isPushLoading,
+        notifications,
+        readNotificationIds,
+        unreadNotificationCount,
+        enablePermanentPush,
+        disablePermanentPush,
+        refreshNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
+        deleteUserNotification,
+        clearUserNotificationHistory
       }}
     >
       {children}

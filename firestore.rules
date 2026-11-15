@@ -122,6 +122,72 @@ service cloud.firestore {
         && data.updatedAt == request.time;
     }
 
+    function isValidPushSubscription(data) {
+      return data.keys().hasAll([
+          'id', 'deviceId', 'endpoint', 'p256dh', 'auth', 'platform',
+          'browserLabel', 'status', 'createdAt', 'lastVerifiedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'deviceId', 'endpoint', 'p256dh', 'auth', 'fcmToken',
+          'customerId', 'customerName', 'customerPhone', 'platform',
+          'browserLabel', 'status', 'failureReason', 'createdAt',
+          'lastVerifiedAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.deviceId is string && data.deviceId.size() >= 1 && data.deviceId.size() <= 128
+        && data.endpoint is string && data.endpoint.size() >= 10 && data.endpoint.size() <= 2000
+        && data.p256dh is string && data.p256dh.size() >= 10 && data.p256dh.size() <= 500
+        && data.auth is string && data.auth.size() >= 6 && data.auth.size() <= 200
+        && (!('fcmToken' in data) || (data.fcmToken is string && data.fcmToken.size() <= 500))
+        && (!('customerId' in data) || (data.customerId is string && data.customerId.size() <= 128))
+        && (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 120))
+        && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 40))
+        && data.platform in ['Android', 'iOS', 'Desktop', 'Mobile']
+        && data.browserLabel is string && data.browserLabel.size() <= 160
+        && data.status in ['active', 'expired', 'unsubscribed']
+        && (!('failureReason' in data) || (data.failureReason is string && data.failureReason.size() <= 300))
+        && data.createdAt is string && data.createdAt.size() <= 60
+        && data.lastVerifiedAt is string && data.lastVerifiedAt.size() <= 60
+        && data.updatedAt == request.time;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll([
+          'id', 'title', 'body', 'category', 'url', 'targetType',
+          'sentBy', 'sentCount', 'failedCount', 'expiredCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'title', 'body', 'category', 'url', 'imageUrl', 'targetType',
+          'targetCustomerId', 'targetPhone', 'sentBy', 'sentCount', 'failedCount',
+          'expiredCount', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.body is string && data.body.size() >= 1 && data.body.size() <= 800
+        && data.category in ['offer', 'order', 'new_arrival', 'announcement', 'general']
+        && data.url is string && data.url.size() >= 1 && data.url.size() <= 300
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2000))
+        && data.targetType in ['all', 'customer']
+        && (!('targetCustomerId' in data) || (data.targetCustomerId is string && data.targetCustomerId.size() <= 128))
+        && (!('targetPhone' in data) || (data.targetPhone is string && data.targetPhone.size() <= 40))
+        && data.sentBy in ['Admin', 'System']
+        && data.sentCount is number && data.sentCount >= 0
+        && data.failedCount is number && data.failedCount >= 0
+        && data.expiredCount is number && data.expiredCount >= 0
+        && data.createdAt is string && data.createdAt.size() <= 60
+        && data.updatedAt == request.time;
+    }
+
+    function isValidDeviceNotifState(data) {
+      return data.keys().hasAll(['deviceId', 'readIds', 'dismissedIds', 'updatedAt'])
+        && data.keys().hasOnly(['deviceId', 'readIds', 'dismissedIds', 'clearedBefore', 'updatedAt'])
+        && isValidId(data.deviceId)
+        && data.readIds is list && data.readIds.size() <= 500
+        && data.dismissedIds is list && data.dismissedIds.size() <= 500
+        && (!('clearedBefore' in data) || (data.clearedBefore is string && data.clearedBefore.size() <= 60))
+        && data.updatedAt == request.time;
+    }
+
     // Boot connection test document
     match /test/connection {
       allow get: if true;
@@ -175,6 +241,29 @@ service cloud.firestore {
         && isValidOrder(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
       allow delete: if isValidId(orderId);
+    }
+
+    // Permanent Push Subscriptions
+    match /push_subscriptions/{subscriptionId} {
+      allow get: if isValidId(subscriptionId);
+      allow list: if true;
+      allow create, update: if isValidId(subscriptionId) && isValidPushSubscription(incoming());
+      allow delete: if isValidId(subscriptionId);
+    }
+
+    // Permanent Notification Broadcast History
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId);
+      allow list: if true;
+      allow create, update: if isValidId(notificationId) && isValidNotification(incoming());
+      allow delete: if isValidId(notificationId);
+    }
+
+    // Per-device Read & Dismissed History State
+    match /device_notification_state/{deviceId} {
+      allow get: if isValidId(deviceId);
+      allow create, update: if isValidId(deviceId) && isValidDeviceNotifState(incoming());
+      allow delete: if isValidId(deviceId);
     }
   }
 }

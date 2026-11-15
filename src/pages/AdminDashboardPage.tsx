@@ -53,11 +53,13 @@ import {
   Copy,
   Printer,
   FileText,
-  CreditCard
+  CreditCard,
+  BellRing
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
 import { AdminAnalyticsPanel } from '../components/analysis/AdminAnalyticsPanel.tsx';
+import { PushAdminPanel } from '../components/PushAdminPanel.tsx';
 import {
   updateCloudAdminSecurity,
   ensureCloudAdminSecurity,
@@ -91,7 +93,7 @@ export const AdminDashboardPage: React.FC = () => {
     refreshSettings
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'products' | 'orders' | 'customers' | 'banners' | 'reviews' | 'inquiries' | 'settings' | 'security'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'products' | 'orders' | 'customers' | 'inquiries' | 'notifications' | 'banners' | 'reviews' | 'settings' | 'security'>('overview');
 
   // Dynamic Site Settings Form State
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(settings);
@@ -1425,6 +1427,7 @@ export const AdminDashboardPage: React.FC = () => {
           { id: 'orders', label: `Orders (${adminOrders.length})`, icon: ShoppingBag },
           { id: 'customers', label: `Customers (${combinedAdminCustomers.length})`, icon: Users },
           { id: 'inquiries', label: `Customer Leads (${adminInquiries.length})`, icon: Mail },
+          { id: 'notifications', label: 'Push Alerts', icon: BellRing },
           { id: 'banners', label: `Banners (${adminBanners.length})`, icon: ImageIcon },
           { id: 'reviews', label: `Reviews (${adminReviews.length})`, icon: MessageSquare },
           { id: 'settings', label: 'Site Settings & Links', icon: Sliders },
@@ -2885,6 +2888,15 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: PERMANENT PUSH NOTIFICATIONS */}
+      {activeTab === 'notifications' && (
+        <PushAdminPanel
+          adminToken={adminToken}
+          showToast={showToast}
+          customers={combinedAdminCustomers}
+        />
       )}
 
       {/* TAB 8: SECURITY & PIN LOCK MANAGEMENT */}

@@ -113,6 +113,66 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "tag", "title", "active", "updatedAt"]
+    },
+    "PushSubscription": {
+      "title": "PushSubscription",
+      "description": "Permanent background Web Push and FCM device subscription persisted across sessions, logouts, and device restarts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "endpoint": { "type": "string", "minLength": 10, "maxLength": 2000 },
+        "p256dh": { "type": "string", "minLength": 10, "maxLength": 500 },
+        "auth": { "type": "string", "minLength": 6, "maxLength": 200 },
+        "fcmToken": { "type": "string", "maxLength": 500 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 40 },
+        "platform": { "type": "string", "enum": ["Android", "iOS", "Desktop", "Mobile"] },
+        "browserLabel": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["active", "expired", "unsubscribed"] },
+        "failureReason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastVerifiedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "deviceId", "endpoint", "p256dh", "auth", "platform", "browserLabel", "status", "createdAt", "lastVerifiedAt", "updatedAt"]
+    },
+    "PushNotificationRecord": {
+      "title": "PushNotificationRecord",
+      "description": "Permanent push notification broadcast history retained until explicitly deleted by users or admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "body": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "category": { "type": "string", "enum": ["offer", "order", "new_arrival", "announcement", "general"] },
+        "url": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "imageUrl": { "type": "string", "maxLength": 2000 },
+        "targetType": { "type": "string", "enum": ["all", "customer"] },
+        "targetCustomerId": { "type": "string", "maxLength": 128 },
+        "targetPhone": { "type": "string", "maxLength": 40 },
+        "sentBy": { "type": "string", "enum": ["Admin", "System"] },
+        "sentCount": { "type": "number" },
+        "failedCount": { "type": "number" },
+        "expiredCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "body", "category", "url", "targetType", "sentBy", "sentCount", "failedCount", "expiredCount", "createdAt", "updatedAt"]
+    },
+    "DeviceNotificationState": {
+      "title": "DeviceNotificationState",
+      "description": "Per-device read and dismissed notification history state without touching push subscriptions.",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "readIds": { "type": "array" },
+        "dismissedIds": { "type": "array" },
+        "clearedBefore": { "type": "string", "maxLength": 60 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["deviceId", "readIds", "dismissedIds", "updatedAt"]
     }
   },
   "firestore": {
@@ -135,6 +195,18 @@
     "/orders/{orderId}": {
       "schema": { "$ref": "#/entities/CustomerOrder" },
       "description": "Stores customer scooty orders."
+    },
+    "/push_subscriptions/{subscriptionId}": {
+      "schema": { "$ref": "#/entities/PushSubscription" },
+      "description": "Stores permanent user push subscriptions (endpoint, encryption keys, FCM token, status)."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/PushNotificationRecord" },
+      "description": "Stores permanent admin & order push notification history."
+    },
+    "/device_notification_state/{deviceId}": {
+      "schema": { "$ref": "#/entities/DeviceNotificationState" },
+      "description": "Stores per-device read and deleted notification history state independently from push subscriptions."
     }
   }
 }

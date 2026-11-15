@@ -4,7 +4,33 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { Product, Order, Review, Banner, ContactInquiry, SiteSettings } from './src/types.ts';
+import {
+  Product,
+  Order,
+  Review,
+  Banner,
+  ContactInquiry,
+  SiteSettings,
+  PushSubscriptionRecord,
+  PushNotificationRecord,
+  DeviceNotificationState,
+  PushPlatform,
+  PushNotificationCategory
+} from './src/types.ts';
+import {
+  VapidKeyPair,
+  initAndGetVapidKeys,
+  upsertPushSubscription,
+  renewPushSubscription,
+  updateSubscriptionStatus,
+  getAllMergedSubscriptions,
+  deletePushSubscriptionRecord,
+  getAllMergedNotifications,
+  deleteNotificationRecord,
+  getDeviceNotifState,
+  updateDeviceNotifState,
+  sendBackgroundPushNotification
+} from './serverPush.ts';
 
 dotenv.config();
 
@@ -562,6 +588,10 @@ interface DatabaseSchema {
   adminEmail: string;
   settings?: SiteSettings;
   customers?: CustomerRecord[];
+  vapidKeys?: VapidKeyPair;
+  pushSubscriptions?: PushSubscriptionRecord[];
+  notifications?: PushNotificationRecord[];
+  deviceNotificationStates?: Record<string, DeviceNotificationState>;
 }
 
 // Default admin credentials: admin@voltglide.com / admin12345 / PIN 12345
@@ -622,6 +652,9 @@ function loadDatabase(): DatabaseSchema {
           if (!Array.isArray(parsed.reviews)) parsed.reviews = INITIAL_REVIEWS;
           if (!Array.isArray(parsed.inquiries)) parsed.inquiries = [];
           if (!Array.isArray(parsed.customers)) parsed.customers = [];
+          if (!Array.isArray(parsed.pushSubscriptions)) parsed.pushSubscriptions = [];
+          if (!Array.isArray(parsed.notifications)) parsed.notifications = [];
+          if (!parsed.deviceNotificationStates || typeof parsed.deviceNotificationStates !== 'object') parsed.deviceNotificationStates = {};
           if (!parsed.adminPin) parsed.adminPin = DEFAULT_ADMIN_PIN;
           if (!parsed.adminPassword) parsed.adminPassword = DEFAULT_ADMIN_PASS;
           if (!parsed.adminHash) parsed.adminHash = hashPassword(parsed.adminPassword || DEFAULT_ADMIN_PASS);
@@ -642,6 +675,9 @@ function loadDatabase(): DatabaseSchema {
     reviews: INITIAL_REVIEWS,
     inquiries: [],
     customers: [],
+    pushSubscriptions: [],
+    notifications: [],
+    deviceNotificationStates: {},
     adminHash: hashPassword(DEFAULT_ADMIN_PASS),
     adminPassword: DEFAULT_ADMIN_PASS,
     adminPin: DEFAULT_ADMIN_PIN,
@@ -1542,6 +1578,7 @@ app.put('/api/admin/orders/:id', authenticateAdmin, (req, res) => {
     }
   }
 
+  const previousStatus = order.status;
   if (req.body.status) {
     order.status = req.body.status;
   }
@@ -1550,6 +1587,28 @@ app.put('/api/admin/orders/:id', authenticateAdmin, (req, res) => {
   }
 
   saveDatabase(db);
+
+  // Automatically notify customer's subscribed devices in the background when order status changes
+  if (req.body.status && req.body.status !== previousStatus) {
+    const statusLabels: Record<string, string> = {
+      Confirmed: `Your VoltGlide order #${order.id} is CONFIRMED! Our dispatch team is preparing your scooty.`,
+      Shipped: `Great news! Your order #${order.id} has been SHIPPED and is on the way to ${order.city}.`,
+      Delivered: `Your VoltGlide order #${order.id} has been DELIVERED. Enjoy your ride!`,
+      Cancelled: `Order #${order.id} status updated to Cancelled. Contact our team on WhatsApp if you need help.`
+    };
+    const msg = statusLabels[order.status] || `Your order #${order.id} status is now ${order.status}.`;
+    sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+      title: `Order #${order.id} · ${order.status}`,
+      body: msg,
+      category: 'order',
+      url: '/customer-account',
+      targetType: 'customer',
+      targetCustomerId: order.customerId,
+      targetPhone: order.customerPhone,
+      sentBy: 'System'
+    }).catch((err) => console.warn('[PushServer] Order status push warning:', err));
+  }
+
   res.json({ success: true, message: 'Order updated successfully!', data: order });
 });
 
@@ -1689,6 +1748,259 @@ app.put('/api/admin/settings', authenticateAdmin, (req, res) => {
   db.settings = updated;
   saveDatabase(db);
   res.json({ success: true, message: 'Website settings, numbers and links updated successfully!', data: updated });
+});
+
+// ================= PERMANENT PUSH NOTIFICATION SYSTEM APIS =================
+
+// Public: Get VAPID Public Key (persistent across restarts)
+app.get('/api/push/vapid-public-key', (req, res) => {
+  const keys = initAndGetVapidKeys(loadDatabase, saveDatabase);
+  res.json({ success: true, publicKey: keys.publicKey });
+});
+
+// Public: Save or verify permanent push subscription (never deleted on logout/close/history-clear)
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const {
+      deviceId,
+      subscription,
+      fcmToken,
+      customerId,
+      customerName,
+      customerPhone,
+      platform,
+      browserLabel
+    } = req.body || {};
+
+    const endpoint = subscription?.endpoint || req.body?.endpoint;
+    const p256dh = subscription?.keys?.p256dh || req.body?.p256dh;
+    const auth = subscription?.keys?.auth || req.body?.auth;
+
+    if (!endpoint || !p256dh || !auth) {
+      res.status(400).json({ success: false, message: 'Valid PushSubscription endpoint and keys are required.' });
+      return;
+    }
+
+    const saved = await upsertPushSubscription(loadDatabase, saveDatabase, {
+      deviceId: typeof deviceId === 'string' ? deviceId : undefined,
+      endpoint: String(endpoint),
+      keys: { p256dh: String(p256dh), auth: String(auth) },
+      fcmToken: typeof fcmToken === 'string' ? fcmToken : undefined,
+      customerId: typeof customerId === 'string' ? customerId : undefined,
+      customerName: typeof customerName === 'string' ? customerName : undefined,
+      customerPhone: typeof customerPhone === 'string' ? customerPhone : undefined,
+      platform: platform as PushPlatform,
+      browserLabel: typeof browserLabel === 'string' ? browserLabel : 'Web Browser'
+    });
+
+    res.json({ success: true, message: 'Permanent push subscription saved.', data: saved });
+  } catch (err: any) {
+    console.error('Push subscribe error:', err);
+    res.status(500).json({ success: false, message: err?.message || 'Failed to save push subscription.' });
+  }
+});
+
+// Public / Service Worker: Auto-renew rotated or expired push subscription
+app.post('/api/push/renew', async (req, res) => {
+  try {
+    const { oldEndpoint, subscription } = req.body || {};
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      res.status(400).json({ success: false, message: 'Valid renewed PushSubscription required.' });
+      return;
+    }
+    const renewed = await renewPushSubscription(loadDatabase, saveDatabase, {
+      oldEndpoint: oldEndpoint || null,
+      subscription
+    });
+    res.json({ success: true, data: renewed });
+  } catch (err: any) {
+    console.error('Push renew error:', err);
+    res.status(500).json({ success: false, message: err?.message || 'Failed to renew push subscription.' });
+  }
+});
+
+// Public: Explicitly mark unsubscribed ONLY when user turns off push toggle
+app.post('/api/push/unsubscribe', async (req, res) => {
+  try {
+    const { endpoint, deviceId } = req.body || {};
+    if (!endpoint && !deviceId) {
+      res.status(400).json({ success: false, message: 'Endpoint or deviceId required.' });
+      return;
+    }
+    await updateSubscriptionStatus(loadDatabase, saveDatabase, {
+      endpoint: typeof endpoint === 'string' ? endpoint : undefined,
+      deviceId: typeof deviceId === 'string' ? deviceId : undefined,
+      status: 'unsubscribed'
+    });
+    res.json({ success: true, message: 'Push notifications paused for this device.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to pause push subscription.' });
+  }
+});
+
+// Public: Check subscription status (detects server-marked expired subscriptions automatically)
+app.get('/api/push/status', async (req, res) => {
+  try {
+    const endpoint = typeof req.query.endpoint === 'string' ? req.query.endpoint : '';
+    const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
+    const all = await getAllMergedSubscriptions(loadDatabase);
+    const matched = all.find(
+      (s) => (endpoint && s.endpoint === endpoint) || (deviceId && s.deviceId === deviceId)
+    );
+    const keys = initAndGetVapidKeys(loadDatabase, saveDatabase);
+    res.json({
+      success: true,
+      publicKey: keys.publicKey,
+      status: matched ? matched.status : 'none',
+      subscription: matched || null
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to check push status.' });
+  }
+});
+
+// Public: Get persistent notification history for a device / customer
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId : '';
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : '';
+    const customerPhone = typeof req.query.customerPhone === 'string' ? req.query.customerPhone : '';
+
+    const [allNotifications, deviceState] = await Promise.all([
+      getAllMergedNotifications(loadDatabase),
+      deviceId
+        ? getDeviceNotifState(loadDatabase, deviceId)
+        : Promise.resolve<DeviceNotificationState>({ deviceId: '', readIds: [], dismissedIds: [] })
+    ]);
+
+    const dismissedSet = new Set(deviceState.dismissedIds || []);
+    const readSet = new Set(deviceState.readIds || []);
+    const clearedBeforeMs = deviceState.clearedBefore ? new Date(deviceState.clearedBefore).getTime() : 0;
+    const phoneNorm = customerPhone.replace(/[^0-9]/g, '').slice(-10);
+
+    const visible = allNotifications.filter((n) => {
+      if (dismissedSet.has(n.id)) return false;
+      if (clearedBeforeMs && new Date(n.createdAt).getTime() <= clearedBeforeMs) return false;
+      if (n.targetType === 'customer') {
+        const idMatch = customerId && n.targetCustomerId === customerId;
+        const phoneMatch = phoneNorm && (n.targetPhone || '').replace(/[^0-9]/g, '').slice(-10) === phoneNorm;
+        return Boolean(idMatch || phoneMatch);
+      }
+      return true;
+    });
+
+    res.json({
+      success: true,
+      data: visible,
+      readIds: Array.from(readSet)
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to load notification history.' });
+  }
+});
+
+// Public: User reads or deletes/clears their notification history (NEVER removes push subscriptions!)
+app.post('/api/notifications/user-action', async (req, res) => {
+  try {
+    const { deviceId, action, notificationId, allNotificationIds } = req.body || {};
+    if (!deviceId || !action) {
+      res.status(400).json({ success: false, message: 'deviceId and action required.' });
+      return;
+    }
+    const nextState = await updateDeviceNotifState(loadDatabase, saveDatabase, String(deviceId), {
+      action,
+      notificationId,
+      allNotificationIds
+    });
+    res.json({ success: true, data: nextState });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to update notification history state.' });
+  }
+});
+
+// Admin: Overview of all subscriptions (active, expired, unsubscribed) and sent history
+app.get('/api/admin/push/overview', authenticateAdmin, async (req, res) => {
+  try {
+    const [subscriptions, notifications] = await Promise.all([
+      getAllMergedSubscriptions(loadDatabase),
+      getAllMergedNotifications(loadDatabase)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        subscriptions,
+        notifications,
+        stats: {
+          totalSubscriptions: subscriptions.length,
+          activeCount: subscriptions.filter((s) => s.status === 'active').length,
+          expiredCount: subscriptions.filter((s) => s.status === 'expired').length,
+          unsubscribedCount: subscriptions.filter((s) => s.status === 'unsubscribed').length,
+          totalBroadcasts: notifications.length
+        }
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to load push overview.' });
+  }
+});
+
+// Admin: Send real background push notification anytime (even when all users closed site / rebooted phones)
+app.post('/api/admin/push/send', authenticateAdmin, async (req, res) => {
+  try {
+    const { title, body, category, url, imageUrl, targetType, targetCustomerId, targetPhone } = req.body || {};
+    if (!title || !String(title).trim() || !body || !String(body).trim()) {
+      res.status(400).json({ success: false, message: 'Notification title and message body are required.' });
+      return;
+    }
+
+    const result = await sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+      title: String(title),
+      body: String(body),
+      category: (category as PushNotificationCategory) || 'general',
+      url: typeof url === 'string' && url.trim() ? url.trim() : '/',
+      imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
+      targetType: targetType === 'customer' ? 'customer' : 'all',
+      targetCustomerId: typeof targetCustomerId === 'string' ? targetCustomerId : undefined,
+      targetPhone: typeof targetPhone === 'string' ? targetPhone : undefined,
+      sentBy: 'Admin'
+    });
+
+    res.json({
+      success: true,
+      message: `Notification saved & pushed (${result.sentCount} delivered, ${result.expiredCount} expired cleaned).`,
+      data: result.notification,
+      stats: {
+        targetedCount: result.targetedCount,
+        sentCount: result.sentCount,
+        failedCount: result.failedCount,
+        expiredCount: result.expiredCount
+      }
+    });
+  } catch (err: any) {
+    console.error('Admin push send error:', err);
+    res.status(500).json({ success: false, message: err?.message || 'Failed to send push notification.' });
+  }
+});
+
+// Admin: Permanently delete a notification from history
+app.delete('/api/admin/push/notifications/:id', authenticateAdmin, async (req, res) => {
+  try {
+    await deleteNotificationRecord(loadDatabase, saveDatabase, req.params.id);
+    res.json({ success: true, message: 'Notification permanently deleted from history.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to delete notification.' });
+  }
+});
+
+// Admin: Remove a subscriber entry from admin registry
+app.delete('/api/admin/push/subscriptions/:id', authenticateAdmin, async (req, res) => {
+  try {
+    await deletePushSubscriptionRecord(loadDatabase, saveDatabase, req.params.id);
+    res.json({ success: true, message: 'Subscription entry removed.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Failed to remove subscription.' });
+  }
 });
 
 // Guaranteed JSON error response handler for all /api endpoints

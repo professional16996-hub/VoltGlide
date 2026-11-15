@@ -14,6 +14,7 @@ import {
   User,
   BarChart3
 } from 'lucide-react';
+import { NotificationCenter } from './NotificationCenter.tsx';
 
 export const Navbar: React.FC = () => {
   const {
@@ -231,6 +232,9 @@ export const Navbar: React.FC = () => {
                 </span>
               )}
             </button>
+
+            {/* Permanent Push Notifications Bell & History */}
+            <NotificationCenter />
 
             {/* Customer Account Button */}
             <button
