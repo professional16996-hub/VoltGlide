@@ -76,6 +76,7 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   paymentMethod: 'Cash on Delivery' | 'Bank Transfer / Raast' | 'Online Card';
+  paymentDetail?: string;
   notes?: string;
   status: OrderStatus;
   createdAt: string;
@@ -131,6 +132,19 @@ export interface ShowroomAddress {
   address: string;
 }
 
+export type PaymentAccountGroup = 'bank_transfer' | 'debit_card';
+
+export interface PaymentAccount {
+  id: string;
+  group: PaymentAccountGroup;
+  provider: string;
+  accountTitle: string;
+  accountNumber: string;
+  ibanOrRaast?: string;
+  instructions?: string;
+  active: boolean;
+}
+
 export interface SiteSettings {
   phone: string;
   whatsappNumber: string;
@@ -148,6 +162,7 @@ export interface SiteSettings {
   deliveryNotice: string;
   footerText: string;
   showrooms: ShowroomAddress[];
+  paymentAccounts?: PaymentAccount[];
 }
 
 export type PushNotificationCategory = 'offer' | 'order' | 'new_arrival' | 'announcement' | 'general';

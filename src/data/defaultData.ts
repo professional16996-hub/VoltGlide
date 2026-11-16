@@ -408,6 +408,109 @@ export const DEFAULT_REVIEWS: Review[] = [
   }
 ];
 
+export const DEFAULT_PAYMENT_ACCOUNTS: import('../types.ts').PaymentAccount[] = [
+  {
+    id: 'acc_jazzcash',
+    group: 'bank_transfer',
+    provider: 'JazzCash',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'Raast ID: 03210424424',
+    instructions: 'JazzCash App se transfer karein aur screenshot / TID order confirm hone par WhatsApp karein.',
+    active: true
+  },
+  {
+    id: 'acc_easypaisa',
+    group: 'bank_transfer',
+    provider: 'EasyPaisa',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'Raast ID: 03210424424',
+    instructions: 'EasyPaisa App ya retailer se transfer kar ke Transaction ID darj karein ya WhatsApp karein.',
+    active: true
+  },
+  {
+    id: 'acc_nayapay',
+    group: 'bank_transfer',
+    provider: 'NayaPay',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'PK42NAYA1234503210424424',
+    instructions: 'NayaPay, SadaPay ya kisi bhi Raast app se free instant transfer karein.',
+    active: true
+  },
+  {
+    id: 'acc_meezan',
+    group: 'bank_transfer',
+    provider: 'Meezan Bank',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '0281-0104829101',
+    ibanOrRaast: 'PK36MEZN0002810104829101',
+    instructions: 'Meezan Bank IBFT / Raast transfer (Branch Code: 0281).',
+    active: true
+  },
+  {
+    id: 'acc_hbl',
+    group: 'bank_transfer',
+    provider: 'HBL Bank',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '1482-7901482903',
+    ibanOrRaast: 'PK58HABB0014827901482903',
+    instructions: 'HBL Mobile / Konnect ya kisi bhi Pakistani bank se IBFT transfer karein.',
+    active: true
+  },
+  {
+    id: 'acc_ubl',
+    group: 'bank_transfer',
+    provider: 'UBL / Alfalah',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '2409-88120491',
+    ibanOrRaast: 'PK71UNIL0109000240988120',
+    instructions: 'UBL / Bank Alfalah IBFT & Raast instant transfer supported 24/7.',
+    active: true
+  },
+  {
+    id: 'card_meezan_visa',
+    group: 'debit_card',
+    provider: 'Meezan Visa / PayPak Debit',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '0281-0104829101',
+    ibanOrRaast: 'PK36MEZN0002810104829101',
+    instructions: 'Visa, Mastercard ya PayPak Debit Card se IBAN / Card Pay Link ke zariye payment karein.',
+    active: true
+  },
+  {
+    id: 'card_hbl_master',
+    group: 'debit_card',
+    provider: 'HBL Visa / Mastercard Debit',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '1482-7901482903',
+    ibanOrRaast: 'PK58HABB0014827901482903',
+    instructions: 'HBL Debit/Credit Card & 1Link online card transfer accepted.',
+    active: true
+  },
+  {
+    id: 'card_nayapay_visa',
+    group: 'debit_card',
+    provider: 'NayaPay / SadaPay Visa Card',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'PK42NAYA1234503210424424',
+    instructions: 'NayaPay / SadaPay Visa Virtual & Physical Debit Card instant transfer account.',
+    active: true
+  },
+  {
+    id: 'card_alfalah',
+    group: 'debit_card',
+    provider: 'Bank Alfalah Debit Card',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '0412-1007892411',
+    ibanOrRaast: 'PK24ALFH0412001007892411',
+    instructions: 'Visa, Mastercard & UnionPay Debit Card merchant settlement account.',
+    active: true
+  }
+];
+
 export const DEFAULT_SETTINGS: import('../types.ts').SiteSettings = {
   phone: '0321-0424424',
   whatsappNumber: '03210424424',
@@ -434,6 +537,8 @@ export const DEFAULT_SETTINGS: import('../types.ts').SiteSettings = {
     { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },
     { city: 'Karachi', title: 'Karachi Center', address: 'Plot 14-C, Shahrah-e-Faisal / DHA Phase 6' },
     { city: 'Islamabad', title: 'Islamabad Branch', address: 'Block 8-C, Jinnah Avenue, Blue Area' }
-  ]
+  ],
+  paymentAccounts: DEFAULT_PAYMENT_ACCOUNTS
 };
+
 

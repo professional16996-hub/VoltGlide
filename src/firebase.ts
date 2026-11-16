@@ -236,6 +236,19 @@ export function subscribeToCloudAdminSecurity(onUpdate: (docData: CloudAdminSecu
 export async function saveCloudSiteSettings(settings: SiteSettings): Promise<boolean> {
   const ref = doc(db, 'site_settings', 'main');
   try {
+    const safePaymentAccounts = Array.isArray(settings.paymentAccounts)
+      ? settings.paymentAccounts.slice(0, 20).map((acc, idx) => ({
+          id: String(acc.id || `pay_${idx}`).slice(0, 80),
+          group: acc.group === 'debit_card' ? 'debit_card' : 'bank_transfer',
+          provider: String(acc.provider || '').slice(0, 80),
+          accountTitle: String(acc.accountTitle || '').slice(0, 120),
+          accountNumber: String(acc.accountNumber || '').slice(0, 80),
+          ibanOrRaast: String(acc.ibanOrRaast || '').slice(0, 120),
+          instructions: String(acc.instructions || '').slice(0, 240),
+          active: acc.active !== false
+        }))
+      : [];
+
     await setDoc(ref, {
       phone: settings.phone || '0321-0424424',
       whatsappNumber: settings.whatsappNumber || '03210424424',
@@ -249,6 +262,7 @@ export async function saveCloudSiteSettings(settings: SiteSettings): Promise<boo
       deliveryNotice: settings.deliveryNotice || '',
       footerText: settings.footerText || '',
       showrooms: Array.isArray(settings.showrooms) ? settings.showrooms.slice(0, 12) : [],
+      paymentAccounts: safePaymentAccounts,
       updatedAt: serverTimestamp()
     });
     return true;
@@ -310,6 +324,7 @@ function sanitizeOrderForCloud(order: Order) {
       paymentMethod: validPayments.includes(order.paymentMethod as any)
         ? order.paymentMethod
         : 'Cash on Delivery',
+      paymentDetail: String(order.paymentDetail || '').trim().slice(0, 240),
       notes: String(order.notes || '').slice(0, 300),
       status: validStatuses.includes(order.status as any) ? order.status : 'Pending',
       createdAt: String(order.createdAt || new Date().toISOString()).slice(0, 60),

@@ -69,6 +69,7 @@
         "heroTagline": { "type": "string", "maxLength": 400 },
         "deliveryNotice": { "type": "string", "maxLength": 400 },
         "footerText": { "type": "string", "maxLength": 500 },
+        "paymentAccounts": { "type": "array" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["phone", "whatsappNumber", "email", "updatedAt"]
@@ -91,6 +92,7 @@
         "shippingAddress": { "type": "string", "minLength": 1, "maxLength": 400 },
         "totalAmount": { "type": "number" },
         "paymentMethod": { "type": "string", "enum": ["Cash on Delivery", "Bank Transfer / Raast", "Online Card"] },
+        "paymentDetail": { "type": "string", "maxLength": 240 },
         "notes": { "type": "string", "maxLength": 300 },
         "status": { "type": "string", "enum": ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"] },
         "createdAt": { "type": "string", "format": "date-time" }

@@ -25,9 +25,12 @@ import {
   RefreshCw,
   FileText,
   X,
-  BellRing
+  BellRing,
+  Download,
+  Loader2
 } from 'lucide-react';
 import { Order } from '../types.ts';
+import { downloadOrderReceiptPng } from '../utils/receiptGenerator.ts';
 
 export const CustomerAccountPage: React.FC = () => {
   const {
@@ -90,6 +93,38 @@ export const CustomerAccountPage: React.FC = () => {
 
   // Invoice modal
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
+
+  const handleDownloadOrderReceipt = async (order: Order) => {
+    if (isDownloadingReceipt) return;
+    setIsDownloadingReceipt(true);
+    const res = await downloadOrderReceiptPng({
+      id: order.id,
+      createdAt: order.createdAt,
+      status: order.status,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      alternatePhone: order.alternatePhone,
+      customerEmail: order.customerEmail,
+      cnic: order.cnic,
+      shippingAddress: order.shippingAddress,
+      areaLandmark: order.areaLandmark,
+      city: order.city,
+      items: order.items,
+      totalAmount: order.totalAmount,
+      paymentMethod: order.paymentMethod,
+      paymentDetail: order.paymentDetail,
+      notes: order.notes,
+      showroomPhone: settings?.phone,
+      showroomEmail: settings?.email
+    });
+    setIsDownloadingReceipt(false);
+    if (res.ok) {
+      showToast(`Receipt downloaded (${res.filename})`, 'success');
+    } else {
+      showToast('Could not generate image. Please try Print Invoice.', 'error');
+    }
+  };
 
   // Sync profile form when customer changes
   useEffect(() => {
@@ -694,6 +729,11 @@ export const CustomerAccountPage: React.FC = () => {
                         </div>
                         <p className="text-[11px] text-slate-400">
                           Payment: <strong className="text-slate-200">{order.paymentMethod}</strong>
+                          {order.paymentDetail ? (
+                            <span className="text-cyan-300 font-mono block sm:inline sm:ml-1.5">
+                              ({order.paymentDetail})
+                            </span>
+                          ) : null}
                         </p>
                       </div>
 
@@ -823,6 +863,11 @@ export const CustomerAccountPage: React.FC = () => {
                         </div>
                         <p className="text-[11px] text-slate-400 mt-2">
                           Payment: <strong className="text-slate-200">{order.paymentMethod}</strong>
+                          {order.paymentDetail && (
+                            <span className="block text-cyan-300 font-mono text-[10px] mt-0.5">
+                              {order.paymentDetail}
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -1180,7 +1225,10 @@ export const CustomerAccountPage: React.FC = () => {
                   <p className="text-slate-300">Area / Landmark: {selectedInvoiceOrder.areaLandmark}</p>
                 )}
                 <p className="text-cyan-300 font-semibold">{selectedInvoiceOrder.city}, Pakistan</p>
-                <p className="text-slate-400 text-[10px] mt-1">Payment: <strong>{selectedInvoiceOrder.paymentMethod}</strong></p>
+                <p className="text-slate-400 text-[10px] mt-1">
+                  Payment: <strong>{selectedInvoiceOrder.paymentMethod}</strong>
+                  {selectedInvoiceOrder.paymentDetail ? ` (${selectedInvoiceOrder.paymentDetail})` : ''}
+                </p>
                 {selectedInvoiceOrder.notes && (
                   <p className="text-amber-300 text-[11px] pt-1">Note: {selectedInvoiceOrder.notes}</p>
                 )}
@@ -1232,16 +1280,31 @@ export const CustomerAccountPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Slip Print & Close Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            {/* Slip Download, Print & Close Buttons */}
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2">
               <button
+                type="button"
+                onClick={() => handleDownloadOrderReceipt(selectedInvoiceOrder)}
+                disabled={isDownloadingReceipt}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-60"
+              >
+                {isDownloadingReceipt ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Download Receipt (PNG)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => window.print()}
-                className="py-2.5 px-5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow cursor-pointer"
+                className="py-2.5 px-4 rounded-xl bg-blue-600/20 hover:bg-blue-600/35 border border-cyan-500/30 text-cyan-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Invoice</span>
               </button>
               <button
+                type="button"
                 onClick={() => setSelectedInvoiceOrder(null)}
                 className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >

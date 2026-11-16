@@ -535,6 +535,109 @@ const INITIAL_ORDERS: Order[] = [
   }
 ];
 
+const INITIAL_PAYMENT_ACCOUNTS = [
+  {
+    id: 'acc_jazzcash',
+    group: 'bank_transfer' as const,
+    provider: 'JazzCash',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'Raast ID: 03210424424',
+    instructions: 'JazzCash App se transfer karein aur screenshot / TID order confirm hone par WhatsApp karein.',
+    active: true
+  },
+  {
+    id: 'acc_easypaisa',
+    group: 'bank_transfer' as const,
+    provider: 'EasyPaisa',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'Raast ID: 03210424424',
+    instructions: 'EasyPaisa App ya retailer se transfer kar ke Transaction ID darj karein ya WhatsApp karein.',
+    active: true
+  },
+  {
+    id: 'acc_nayapay',
+    group: 'bank_transfer' as const,
+    provider: 'NayaPay',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'PK42NAYA1234503210424424',
+    instructions: 'NayaPay, SadaPay ya kisi bhi Raast app se free instant transfer karein.',
+    active: true
+  },
+  {
+    id: 'acc_meezan',
+    group: 'bank_transfer' as const,
+    provider: 'Meezan Bank',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '0281-0104829101',
+    ibanOrRaast: 'PK36MEZN0002810104829101',
+    instructions: 'Meezan Bank IBFT / Raast transfer (Branch Code: 0281).',
+    active: true
+  },
+  {
+    id: 'acc_hbl',
+    group: 'bank_transfer' as const,
+    provider: 'HBL Bank',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '1482-7901482903',
+    ibanOrRaast: 'PK58HABB0014827901482903',
+    instructions: 'HBL Mobile / Konnect ya kisi bhi Pakistani bank se IBFT transfer karein.',
+    active: true
+  },
+  {
+    id: 'acc_ubl',
+    group: 'bank_transfer' as const,
+    provider: 'UBL / Alfalah',
+    accountTitle: 'VoltGlide Motors Pvt Ltd',
+    accountNumber: '2409-88120491',
+    ibanOrRaast: 'PK71UNIL0109000240988120',
+    instructions: 'UBL / Bank Alfalah IBFT & Raast instant transfer supported 24/7.',
+    active: true
+  },
+  {
+    id: 'card_meezan_visa',
+    group: 'debit_card' as const,
+    provider: 'Meezan Visa / PayPak Debit',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '0281-0104829101',
+    ibanOrRaast: 'PK36MEZN0002810104829101',
+    instructions: 'Visa, Mastercard ya PayPak Debit Card se IBAN / Card Pay Link ke zariye payment karein.',
+    active: true
+  },
+  {
+    id: 'card_hbl_master',
+    group: 'debit_card' as const,
+    provider: 'HBL Visa / Mastercard Debit',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '1482-7901482903',
+    ibanOrRaast: 'PK58HABB0014827901482903',
+    instructions: 'HBL Debit/Credit Card & 1Link online card transfer accepted.',
+    active: true
+  },
+  {
+    id: 'card_nayapay_visa',
+    group: 'debit_card' as const,
+    provider: 'NayaPay / SadaPay Visa Card',
+    accountTitle: 'VoltGlide Motors Pakistan',
+    accountNumber: '0321-0424424',
+    ibanOrRaast: 'PK42NAYA1234503210424424',
+    instructions: 'NayaPay / SadaPay Visa Virtual & Physical Debit Card instant transfer account.',
+    active: true
+  },
+  {
+    id: 'card_alfalah',
+    group: 'debit_card' as const,
+    provider: 'Bank Alfalah Debit Card',
+    accountTitle: 'VoltGlide Motors Merchant',
+    accountNumber: '0412-1007892411',
+    ibanOrRaast: 'PK24ALFH0412001007892411',
+    instructions: 'Visa, Mastercard & UnionPay Debit Card merchant settlement account.',
+    active: true
+  }
+];
+
 const INITIAL_SETTINGS: SiteSettings = {
   phone: '0321-0424424',
   whatsappNumber: '03210424424',
@@ -561,7 +664,8 @@ const INITIAL_SETTINGS: SiteSettings = {
     { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },
     { city: 'Karachi', title: 'Karachi Center', address: 'Plot 14-C, Shahrah-e-Faisal / DHA Phase 6' },
     { city: 'Islamabad', title: 'Islamabad Branch', address: 'Block 8-C, Jinnah Avenue, Blue Area' }
-  ]
+  ],
+  paymentAccounts: INITIAL_PAYMENT_ACCOUNTS
 };
 
 export interface CustomerRecord {
@@ -936,6 +1040,7 @@ app.post('/api/orders', (req, res) => {
     items,
     totalAmount,
     paymentMethod,
+    paymentDetail,
     notes
   } = req.body;
 
@@ -978,6 +1083,7 @@ app.post('/api/orders', (req, res) => {
     items,
     totalAmount: Number(totalAmount) || 0,
     paymentMethod: paymentMethod || 'Cash on Delivery',
+    paymentDetail: paymentDetail ? String(paymentDetail).trim().slice(0, 240) : '',
     notes: notes ? String(notes).slice(0, 300) : '',
     status: 'Pending',
     createdAt: new Date().toISOString()
@@ -1729,7 +1835,16 @@ app.delete('/api/admin/inquiries/:id', authenticateAdmin, (req, res) => {
 // Public: Get site settings
 app.get('/api/settings', (req, res) => {
   const db = loadDatabase();
-  res.json({ success: true, data: db.settings || INITIAL_SETTINGS });
+  const s = db.settings || INITIAL_SETTINGS;
+  const normalized: SiteSettings = {
+    ...INITIAL_SETTINGS,
+    ...s,
+    paymentAccounts:
+      Array.isArray(s.paymentAccounts) && s.paymentAccounts.length > 0
+        ? s.paymentAccounts
+        : INITIAL_PAYMENT_ACCOUNTS
+  };
+  res.json({ success: true, data: normalized });
 });
 
 // Admin: Update site settings
@@ -1748,7 +1863,10 @@ app.put('/api/admin/settings', authenticateAdmin, (req, res) => {
     announcementBar: {
       ...current.announcementBar,
       ...(settingsData.announcementBar || {})
-    }
+    },
+    paymentAccounts: Array.isArray(settingsData.paymentAccounts)
+      ? settingsData.paymentAccounts
+      : current.paymentAccounts || INITIAL_PAYMENT_ACCOUNTS
   };
   db.settings = updated;
   saveDatabase(db);

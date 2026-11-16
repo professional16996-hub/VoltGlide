@@ -3,6 +3,9 @@ import { useApp } from '../context/AppContext.tsx';
 import { formatPKR } from '../utils/formatters.ts';
 import { getWhatsAppUrl } from '../utils/whatsapp.ts';
 import { WhatsAppIconSVG } from './FloatingWhatsApp.tsx';
+import { DEFAULT_PAYMENT_ACCOUNTS } from '../data/defaultData.ts';
+import { PaymentAccount, OrderItem } from '../types.ts';
+import { downloadOrderReceiptPng, formatReceiptDateTime } from '../utils/receiptGenerator.ts';
 import {
   X,
   Trash2,
@@ -21,7 +24,14 @@ import {
   CreditCard,
   Banknote,
   Building2,
-  Loader2
+  Loader2,
+  Copy,
+  Check,
+  Wallet,
+  Landmark,
+  Download,
+  Printer,
+  Receipt
 } from 'lucide-react';
 
 export const CartDrawer: React.FC = () => {
@@ -41,9 +51,12 @@ export const CartDrawer: React.FC = () => {
   } = useApp();
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [isDownloadingReceipt, setIsDownloadingReceipt] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<{
     id: string;
+    createdAt: string;
     total: number;
+    items: OrderItem[];
     customerName: string;
     customerPhone: string;
     alternatePhone?: string;
@@ -53,6 +66,7 @@ export const CartDrawer: React.FC = () => {
     areaLandmark?: string;
     city: string;
     paymentMethod: string;
+    paymentDetail?: string;
     notes?: string;
   } | null>(null);
 
@@ -66,9 +80,42 @@ export const CartDrawer: React.FC = () => {
   const [areaLandmark, setAreaLandmark] = useState('');
   const [city, setCity] = useState(customer?.city || 'Lahore');
   const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'Bank Transfer / Raast' | 'Online Card'>('Cash on Delivery');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
+  const [selectedCardAccountId, setSelectedCardAccountId] = useState<string>('');
+  const [paymentRef, setPaymentRef] = useState<string>('');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string; address?: string }>({});
+
+  const allPaymentAccounts: PaymentAccount[] =
+    Array.isArray(settings?.paymentAccounts) && settings.paymentAccounts.length > 0
+      ? settings.paymentAccounts
+      : DEFAULT_PAYMENT_ACCOUNTS;
+
+  const bankTransferAccounts = allPaymentAccounts.filter(
+    (a) => a.group === 'bank_transfer' && a.active !== false
+  );
+  const debitCardAccounts = allPaymentAccounts.filter(
+    (a) => a.group === 'debit_card' && a.active !== false
+  );
+
+  const activeBankAccount =
+    bankTransferAccounts.find((a) => a.id === selectedBankAccountId) || bankTransferAccounts[0] || null;
+  const activeCardAccount =
+    debitCardAccounts.find((a) => a.id === selectedCardAccountId) || debitCardAccounts[0] || null;
+
+  const handleCopyAccountText = async (key: string, value: string, label: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      showToast(`${label} copied: ${value}`, 'success');
+      setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 2200);
+    } catch {
+      showToast(`${label}: ${value}`, 'info');
+    }
+  };
 
   // Sync if customer logs in or changes
   useEffect(() => {
@@ -122,6 +169,20 @@ export const CartDrawer: React.FC = () => {
       selectedColor: item.selectedColor
     }));
 
+    const selectedPaymentAccount =
+      paymentMethod === 'Bank Transfer / Raast'
+        ? activeBankAccount
+        : paymentMethod === 'Online Card'
+        ? activeCardAccount
+        : null;
+
+    const cleanRef = paymentRef.trim();
+    const computedPaymentDetail = selectedPaymentAccount
+      ? `${selectedPaymentAccount.provider} (${selectedPaymentAccount.accountNumber})${
+          cleanRef ? ` · Ref: ${cleanRef}` : ''
+        }`
+      : '';
+
     const result = await placeOrder({
       customerId: customer?.id,
       accountType: customer ? 'Registered' : 'Guest',
@@ -136,6 +197,7 @@ export const CartDrawer: React.FC = () => {
       items: orderItems,
       totalAmount: cartTotal,
       paymentMethod,
+      paymentDetail: computedPaymentDetail || undefined,
       notes: notes.trim()
     });
 
@@ -143,7 +205,9 @@ export const CartDrawer: React.FC = () => {
     if (result.success && result.orderId) {
       setCompletedOrder({
         id: result.orderId,
+        createdAt: new Date().toISOString(),
         total: cartTotal,
+        items: orderItems,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         alternatePhone: alternatePhone.trim() || undefined,
@@ -153,10 +217,43 @@ export const CartDrawer: React.FC = () => {
         areaLandmark: areaLandmark.trim() || undefined,
         city,
         paymentMethod,
+        paymentDetail: computedPaymentDetail || undefined,
         notes: notes.trim() || undefined
       });
       setIsCheckingOut(false);
       setFormErrors({});
+      setPaymentRef('');
+    }
+  };
+
+  const handleDownloadCartReceipt = async () => {
+    if (!completedOrder || isDownloadingReceipt) return;
+    setIsDownloadingReceipt(true);
+    const res = await downloadOrderReceiptPng({
+      id: completedOrder.id,
+      createdAt: completedOrder.createdAt,
+      status: 'Order Confirmed',
+      customerName: completedOrder.customerName,
+      customerPhone: completedOrder.customerPhone,
+      alternatePhone: completedOrder.alternatePhone,
+      customerEmail: completedOrder.customerEmail,
+      cnic: completedOrder.cnic,
+      shippingAddress: completedOrder.shippingAddress,
+      areaLandmark: completedOrder.areaLandmark,
+      city: completedOrder.city,
+      items: completedOrder.items,
+      totalAmount: completedOrder.total,
+      paymentMethod: completedOrder.paymentMethod,
+      paymentDetail: completedOrder.paymentDetail,
+      notes: completedOrder.notes,
+      showroomPhone: settings?.phone,
+      showroomEmail: settings?.email
+    });
+    setIsDownloadingReceipt(false);
+    if (res.ok) {
+      showToast(`Receipt saved (${res.filename})`, 'success');
+    } else {
+      showToast('Could not generate image. Please try Print / PDF.', 'error');
     }
   };
 
@@ -169,6 +266,7 @@ export const CartDrawer: React.FC = () => {
       completedOrder.customerEmail ? `*Email:* ${completedOrder.customerEmail}` : '',
       completedOrder.cnic ? `*CNIC:* ${completedOrder.cnic}` : '',
       completedOrder.areaLandmark ? `*Area / Landmark:* ${completedOrder.areaLandmark}` : '',
+      completedOrder.paymentDetail ? `*Selected Account / Ref:* ${completedOrder.paymentDetail}` : '',
       completedOrder.notes ? `*Notes:* ${completedOrder.notes}` : ''
     ].filter(Boolean).join('\n');
 
@@ -217,10 +315,14 @@ export const CartDrawer: React.FC = () => {
             )}
             <div>
               <h3 className="font-bold text-base text-white font-heading">
-                {completedOrder ? 'Order Confirmed' : isCheckingOut ? 'Express Checkout' : `Shopping Cart (${cartCount})`}
+                {completedOrder ? 'Order & Payment Receipt' : isCheckingOut ? 'Express Checkout' : `Shopping Cart (${cartCount})`}
               </h3>
               <p className="text-[11px] text-slate-400">
-                {isCheckingOut ? 'Step 2 of 2: Delivery & Contact' : 'Nationwide Doorstep Delivery'}
+                {completedOrder
+                  ? 'Official Digital Slip · Ready to Save or Share'
+                  : isCheckingOut
+                  ? 'Step 2 of 2: Delivery & Contact'
+                  : 'Nationwide Doorstep Delivery'}
               </p>
             </div>
           </div>
@@ -238,68 +340,169 @@ export const CartDrawer: React.FC = () => {
           </button>
         </div>
 
-        {/* VIEW 1: SUCCESSFUL ORDER CONFIRMATION */}
+        {/* VIEW 1: SUCCESSFUL ORDER CONFIRMATION & DIGITAL E-RECEIPT */}
         {completedOrder ? (
-          <div className="p-6 flex-1 overflow-y-auto flex flex-col items-center justify-center text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 animate-in zoom-in duration-300">
-              <CheckCircle2 className="w-10 h-10" />
+          <div className="p-4 sm:p-6 flex-1 overflow-y-auto flex flex-col items-center justify-start space-y-4">
+            {/* Digital Payment-Style Official Receipt Card */}
+            <div className="w-full rounded-2xl bg-white text-slate-900 shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+              {/* Branded Receipt Header */}
+              <div className="bg-gradient-to-r from-[#042f2e] via-[#0f172a] to-[#083344] px-4 py-3.5 flex items-center justify-between text-white">
+                <div>
+                  <div className="text-base font-black tracking-tight leading-none">
+                    VOLT<span className="text-cyan-400">GLIDE</span>
+                  </div>
+                  <p className="text-[9px] font-bold tracking-widest text-slate-300 uppercase mt-1">
+                    Motors Pakistan · E-Receipt
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9px] font-bold uppercase">
+                    <Receipt className="w-2.5 h-2.5" />
+                    Verified Slip
+                  </span>
+                  <p className="font-mono text-[11px] text-cyan-300 font-bold mt-1">
+                    #{completedOrder.id}
+                  </p>
+                </div>
+              </div>
+
+              {/* Hero Verification + Total Amount */}
+              <div className="px-4 pt-5 pb-4 text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border-2 border-emerald-500 flex items-center justify-center mx-auto mb-2.5 shadow-sm">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600">
+                  Order Confirmed · Official Receipt Issued
+                </p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 font-mono tracking-tight mt-1">
+                  {formatPKR(completedOrder.total)}
+                </p>
+                <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                  {completedOrder.paymentMethod === 'Cash on Delivery'
+                    ? 'Payable on Doorstep Delivery (Cash on Delivery)'
+                    : `Payment Channel: ${completedOrder.paymentMethod}`}
+                </p>
+              </div>
+
+              {/* Perforated Ticket Tear Line */}
+              <div className="relative flex items-center py-2">
+                <div className="w-4 h-4 rounded-full bg-[#090b14] -ml-2 shrink-0" />
+                <div className="flex-1 border-t-2 border-dashed border-slate-300 mx-1" />
+                <div className="w-4 h-4 rounded-full bg-[#090b14] -mr-2 shrink-0" />
+              </div>
+
+              {/* Key-Value Receipt Details */}
+              <div className="px-4 py-3 space-y-2 text-[11px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-medium">Receipt / Order #</span>
+                  <span className="font-mono font-bold text-sky-700">#{completedOrder.id}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-medium">Date & Time</span>
+                  <span className="font-semibold text-slate-800 text-right">
+                    {formatReceiptDateTime(completedOrder.createdAt)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-medium">Payment Method</span>
+                  <span className="font-bold text-emerald-700 text-right">{completedOrder.paymentMethod}</span>
+                </div>
+                {completedOrder.paymentDetail && (
+                  <div className="flex justify-between gap-3 items-start">
+                    <span className="text-slate-500 font-medium shrink-0">Account / TID Ref</span>
+                    <span className="font-mono font-semibold text-slate-900 text-right break-all">
+                      {completedOrder.paymentDetail}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-medium">Customer Name</span>
+                  <span className="font-bold text-slate-900 text-right">{completedOrder.customerName}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500 font-medium">Mobile Number</span>
+                  <span className="font-mono font-semibold text-slate-800 text-right">
+                    {completedOrder.customerPhone}
+                    {completedOrder.alternatePhone ? ` / ${completedOrder.alternatePhone}` : ''}
+                  </span>
+                </div>
+                {completedOrder.cnic && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500 font-medium">CNIC (Warranty)</span>
+                    <span className="font-mono font-semibold text-slate-800">{completedOrder.cnic}</span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-3 items-start">
+                  <span className="text-slate-500 font-medium shrink-0">Delivery Address</span>
+                  <span className="font-semibold text-slate-800 text-right">
+                    {completedOrder.shippingAddress}
+                    {completedOrder.areaLandmark ? ` (${completedOrder.areaLandmark})` : ''}, {completedOrder.city}
+                  </span>
+                </div>
+              </div>
+
+              {/* Itemized Scooties Breakdown */}
+              <div className="mx-4 my-2 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-1.5">
+                  Ordered Scooties ({completedOrder.items.reduce((s, it) => s + it.quantity, 0)})
+                </p>
+                {completedOrder.items.map((item, idx) => (
+                  <div key={`${item.productId}-${idx}`} className="flex items-start justify-between gap-2 text-[11px]">
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 leading-snug">{item.productName}</p>
+                      <p className="text-[10px] text-slate-500">
+                        Qty: {item.quantity} × {formatPKR(item.price)}
+                        {item.selectedColor ? ` · ${item.selectedColor}` : ''}
+                      </p>
+                    </div>
+                    <span className="font-mono font-bold text-slate-900 shrink-0">
+                      {formatPKR(item.price * item.quantity)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {completedOrder.notes && (
+                <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-900">
+                  <span className="font-bold">Customer Note:</span> {completedOrder.notes}
+                </div>
+              )}
+
+              {/* Bottom Helpline Footer */}
+              <div className="mt-3 px-4 py-2.5 bg-slate-100 border-t border-slate-200 text-center space-y-0.5">
+                <p className="text-[10px] font-bold text-slate-700">
+                  Helpline: {settings?.phone || '0321-0424424'} · {settings?.email || 'sales@voltglide.com'}
+                </p>
+                <p className="text-[9px] text-slate-500">
+                  Save this receipt for warranty & dispatch verification.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <h4 className="text-xl sm:text-2xl font-black text-white font-heading">
-                Order Placed Successfully!
-              </h4>
-              <p className="text-xs text-slate-400">
-                Aap ka scooty order showroom database me save ho chuka hai.
-              </p>
-            </div>
+            {/* Download PNG & Print PDF Buttons */}
+            <div className="grid grid-cols-2 gap-2.5 w-full">
+              <button
+                type="button"
+                onClick={handleDownloadCartReceipt}
+                disabled={isDownloadingReceipt}
+                className="py-3 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-950/40 cursor-pointer active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {isDownloadingReceipt ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Download Receipt</span>
+              </button>
 
-            <div className="surface-card p-4 rounded-2xl text-xs text-slate-300 w-full text-left space-y-2 border border-white/[0.08]">
-              <div className="flex justify-between items-center pb-2 border-b border-white/[0.06]">
-                <span className="text-slate-400">Order ID:</span>
-                <span className="font-mono font-black text-cyan-400 text-sm">#{completedOrder.id}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-400">Customer:</span>
-                <span className="font-bold text-white text-right">{completedOrder.customerName}</span>
-              </div>
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-400">WhatsApp Mobile:</span>
-                <span className="font-mono text-white">{completedOrder.customerPhone}</span>
-              </div>
-              {completedOrder.alternatePhone && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">Alternate Phone:</span>
-                  <span className="font-mono text-slate-200">{completedOrder.alternatePhone}</span>
-                </div>
-              )}
-              {completedOrder.customerEmail && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">Email:</span>
-                  <span className="text-slate-200 truncate max-w-[200px]">{completedOrder.customerEmail}</span>
-                </div>
-              )}
-              {completedOrder.cnic && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-slate-400">CNIC (Warranty):</span>
-                  <span className="font-mono text-slate-200">{completedOrder.cnic}</span>
-                </div>
-              )}
-              <div className="flex justify-between gap-2">
-                <span className="text-slate-400 shrink-0">Destination:</span>
-                <span className="text-white text-right max-w-[220px]">
-                  {completedOrder.shippingAddress}
-                  {completedOrder.areaLandmark ? ` (${completedOrder.areaLandmark})` : ''}, {completedOrder.city}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/[0.06]">
-                <span className="text-slate-400">Total Amount:</span>
-                <span className="font-black text-white text-sm font-mono">{formatPKR(completedOrder.total)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Payment:</span>
-                <span className="text-emerald-400 font-semibold">{completedOrder.paymentMethod}</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="py-3 px-3 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] border border-white/[0.12] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
+              >
+                <Printer className="w-4 h-4 text-cyan-400" />
+                <span>Print / Save PDF</span>
+              </button>
             </div>
 
             {/* Instant WhatsApp Confirmation */}
@@ -321,7 +524,7 @@ export const CartDrawer: React.FC = () => {
               }}
               className="w-full py-3 px-4 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-colors cursor-pointer"
             >
-              📦 Track Order in Customer Account
+              📦 Track Order & View Receipt in Account
             </button>
 
             <button
@@ -550,11 +753,12 @@ export const CartDrawer: React.FC = () => {
               </div>
 
               {/* Payment Method Selector */}
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2.5 pt-1">
                 <label className="block text-slate-200 font-semibold text-xs">
                   Payment Method (Raqam Ki Adaigi)
                 </label>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
+                  {/* Option 1: Cash on Delivery */}
                   <label
                     className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                       paymentMethod === 'Cash on Delivery'
@@ -570,9 +774,9 @@ export const CartDrawer: React.FC = () => {
                       onChange={() => setPaymentMethod('Cash on Delivery')}
                       className="text-cyan-400 focus:ring-0"
                     />
-                    <Banknote className="w-4 h-4 text-emerald-400" />
+                    <Banknote className="w-4 h-4 text-emerald-400 shrink-0" />
                     <div className="flex-1">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-xs text-white">Cash on Delivery (COD)</span>
                         <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded">
                           Recommended
@@ -582,49 +786,342 @@ export const CartDrawer: React.FC = () => {
                     </div>
                   </label>
 
-                  <label
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                  {/* Option 2: Bank Transfer / JazzCash / EasyPaisa / NayaPay / Banks */}
+                  <div
+                    className={`rounded-xl border transition-all overflow-hidden ${
                       paymentMethod === 'Bank Transfer / Raast'
-                        ? 'bg-blue-600/20 border-cyan-400 text-white shadow-md'
-                        : 'bg-[#0c101d] border-white/[0.08] text-slate-400'
+                        ? 'bg-blue-600/15 border-cyan-400 shadow-md'
+                        : 'bg-[#0c101d] border-white/[0.08]'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="Bank Transfer / Raast"
-                      checked={paymentMethod === 'Bank Transfer / Raast'}
-                      onChange={() => setPaymentMethod('Bank Transfer / Raast')}
-                      className="text-cyan-400 focus:ring-0"
-                    />
-                    <Building2 className="w-4 h-4 text-blue-400" />
-                    <div className="flex-1">
-                      <span className="font-bold text-xs text-white block">Bank Transfer / Raast ID</span>
-                      <p className="text-[11px] text-slate-400">Order k baad official bank details WhatsApp par milein gi</p>
-                    </div>
-                  </label>
+                    <label className="flex items-center gap-3 p-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="Bank Transfer / Raast"
+                        checked={paymentMethod === 'Bank Transfer / Raast'}
+                        onChange={() => setPaymentMethod('Bank Transfer / Raast')}
+                        className="text-cyan-400 focus:ring-0"
+                      />
+                      <Wallet className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-xs text-white block">
+                          Bank Transfer / JazzCash / EasyPaisa / NayaPay
+                        </span>
+                        <p className="text-[11px] text-slate-400">
+                          JazzCash, EasyPaisa, NayaPay, Meezan, HBL & UBL accounts available
+                        </p>
+                      </div>
+                    </label>
 
-                  <label
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    {paymentMethod === 'Bank Transfer / Raast' && bankTransferAccounts.length > 0 && (
+                      <div className="px-3 pb-3 pt-1 border-t border-cyan-500/20 space-y-2.5 bg-[#090d18]/90">
+                        <p className="text-[11px] font-bold text-cyan-300 pt-1">
+                          Transfer karne ke liye account select karein:
+                        </p>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                          {bankTransferAccounts.map((acc) => {
+                            const isSelected = activeBankAccount?.id === acc.id;
+                            return (
+                              <button
+                                key={acc.id}
+                                type="button"
+                                onClick={() => setSelectedBankAccountId(acc.id)}
+                                className={`px-2.5 py-2 rounded-lg text-[11px] font-bold border text-left transition-all cursor-pointer truncate ${
+                                  isSelected
+                                    ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm'
+                                    : 'bg-white/[0.03] border-white/[0.08] text-slate-300 hover:border-cyan-500/40'
+                                }`}
+                              >
+                                {acc.provider}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {activeBankAccount && (
+                          <div className="p-3 rounded-xl bg-[#0d1424] border border-cyan-500/30 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                                <Landmark className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                {activeBankAccount.provider}
+                              </span>
+                              <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded">
+                                Active Account
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5 text-[11px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-slate-400">Account Title:</span>
+                                <span className="text-white font-semibold text-right">
+                                  {activeBankAccount.accountTitle}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] text-slate-400 block">Account / Mobile #</span>
+                                  <span className="font-mono font-bold text-cyan-300 text-xs break-all">
+                                    {activeBankAccount.accountNumber}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopyAccountText(
+                                      `${activeBankAccount.id}_num`,
+                                      activeBankAccount.accountNumber,
+                                      `${activeBankAccount.provider} Account #`
+                                    )
+                                  }
+                                  className="px-2 py-1 rounded-md bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                                >
+                                  {copiedKey === `${activeBankAccount.id}_num` ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span>Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3" />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {activeBankAccount.ibanOrRaast && (
+                                <div className="flex items-center justify-between gap-2 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] text-slate-400 block">IBAN / Raast ID</span>
+                                    <span className="font-mono text-slate-200 text-[11px] break-all">
+                                      {activeBankAccount.ibanOrRaast}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyAccountText(
+                                        `${activeBankAccount.id}_iban`,
+                                        activeBankAccount.ibanOrRaast || '',
+                                        `${activeBankAccount.provider} IBAN / Raast`
+                                      )
+                                    }
+                                    className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                                  >
+                                    {copiedKey === `${activeBankAccount.id}_iban` ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span>Copied</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3 h-3" />
+                                        <span>Copy</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {activeBankAccount.instructions && (
+                                <p className="text-[10px] text-amber-200/90 leading-relaxed pt-0.5">
+                                  {activeBankAccount.instructions}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-300 font-semibold">
+                            Transaction ID / Sender Account (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={80}
+                            placeholder="e.g. TID 84920194 ya apna account naam likhein"
+                            value={paymentRef}
+                            onChange={(e) => setPaymentRef(e.target.value)}
+                            className="w-full bg-[#0c101d] border border-white/[0.1] rounded-lg px-2.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-[11px]"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Option 3: Debit / Credit Card Accounts */}
+                  <div
+                    className={`rounded-xl border transition-all overflow-hidden ${
                       paymentMethod === 'Online Card'
-                        ? 'bg-blue-600/20 border-cyan-400 text-white shadow-md'
-                        : 'bg-[#0c101d] border-white/[0.08] text-slate-400'
+                        ? 'bg-blue-600/15 border-cyan-400 shadow-md'
+                        : 'bg-[#0c101d] border-white/[0.08]'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="Online Card"
-                      checked={paymentMethod === 'Online Card'}
-                      onChange={() => setPaymentMethod('Online Card')}
-                      className="text-cyan-400 focus:ring-0"
-                    />
-                    <CreditCard className="w-4 h-4 text-cyan-400" />
-                    <div className="flex-1">
-                      <span className="font-bold text-xs text-white block">Debit / Credit Card</span>
-                      <p className="text-[11px] text-slate-400">Visa / Mastercard accepted</p>
-                    </div>
-                  </label>
+                    <label className="flex items-center gap-3 p-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="Online Card"
+                        checked={paymentMethod === 'Online Card'}
+                        onChange={() => setPaymentMethod('Online Card')}
+                        className="text-cyan-400 focus:ring-0"
+                      />
+                      <CreditCard className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-xs text-white block">
+                          Debit / Credit Card Accounts
+                        </span>
+                        <p className="text-[11px] text-slate-400">
+                          Meezan, HBL, NayaPay & Alfalah Visa / Mastercard / PayPak accounts
+                        </p>
+                      </div>
+                    </label>
+
+                    {paymentMethod === 'Online Card' && debitCardAccounts.length > 0 && (
+                      <div className="px-3 pb-3 pt-1 border-t border-cyan-500/20 space-y-2.5 bg-[#090d18]/90">
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <p className="text-[11px] font-bold text-cyan-300">
+                            Debit Card payment ke liye account chunein:
+                          </p>
+                          <span className="text-[9px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded">
+                            VISA · MC · PayPak
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {debitCardAccounts.map((acc) => {
+                            const isSelected = activeCardAccount?.id === acc.id;
+                            return (
+                              <button
+                                key={acc.id}
+                                type="button"
+                                onClick={() => setSelectedCardAccountId(acc.id)}
+                                className={`px-2.5 py-2 rounded-lg text-[11px] font-bold border text-left transition-all cursor-pointer truncate ${
+                                  isSelected
+                                    ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm'
+                                    : 'bg-white/[0.03] border-white/[0.08] text-slate-300 hover:border-cyan-500/40'
+                                }`}
+                              >
+                                {acc.provider}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {activeCardAccount && (
+                          <div className="p-3 rounded-xl bg-[#0d1424] border border-cyan-500/30 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                                <CreditCard className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                                {activeCardAccount.provider}
+                              </span>
+                              <span className="text-[10px] font-semibold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 rounded">
+                                Debit Card Account
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5 text-[11px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-slate-400">Merchant / Account Title:</span>
+                                <span className="text-white font-semibold text-right">
+                                  {activeCardAccount.accountTitle}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                                <div className="min-w-0">
+                                  <span className="text-[10px] text-slate-400 block">Card Settlement / Account #</span>
+                                  <span className="font-mono font-bold text-cyan-300 text-xs break-all">
+                                    {activeCardAccount.accountNumber}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopyAccountText(
+                                      `${activeCardAccount.id}_num`,
+                                      activeCardAccount.accountNumber,
+                                      `${activeCardAccount.provider} Account #`
+                                    )
+                                  }
+                                  className="px-2 py-1 rounded-md bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                                >
+                                  {copiedKey === `${activeCardAccount.id}_num` ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span>Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3" />
+                                      <span>Copy</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {activeCardAccount.ibanOrRaast && (
+                                <div className="flex items-center justify-between gap-2 bg-slate-950/70 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] text-slate-400 block">Card IBAN / Raast Link</span>
+                                    <span className="font-mono text-slate-200 text-[11px] break-all">
+                                      {activeCardAccount.ibanOrRaast}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyAccountText(
+                                        `${activeCardAccount.id}_iban`,
+                                        activeCardAccount.ibanOrRaast || '',
+                                        `${activeCardAccount.provider} IBAN`
+                                      )
+                                    }
+                                    className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+                                  >
+                                    {copiedKey === `${activeCardAccount.id}_iban` ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span>Copied</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3 h-3" />
+                                        <span>Copy</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {activeCardAccount.instructions && (
+                                <p className="text-[10px] text-amber-200/90 leading-relaxed pt-0.5">
+                                  {activeCardAccount.instructions}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-slate-300 font-semibold">
+                            Card Type / Last 4 Digits / Payment Ref (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={80}
+                            placeholder="e.g. Visa **4521 ya Payment Ref #"
+                            value={paymentRef}
+                            onChange={(e) => setPaymentRef(e.target.value)}
+                            className="w-full bg-[#0c101d] border border-white/[0.1] rounded-lg px-2.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 text-[11px]"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { Product, Order, Banner, Review, ContactInquiry, AvailabilityType, SiteSettings } from '../types.ts';
+import { Product, Order, Banner, Review, ContactInquiry, AvailabilityType, SiteSettings, PaymentAccount } from '../types.ts';
+import { DEFAULT_PAYMENT_ACCOUNTS } from '../data/defaultData.ts';
 import { formatPKR } from '../utils/formatters.ts';
 import {
   LayoutDashboard,
@@ -54,7 +55,9 @@ import {
   Printer,
   FileText,
   CreditCard,
-  BellRing
+  BellRing,
+  Landmark,
+  Wallet
 } from 'lucide-react';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { cleanWhatsAppNumber } from '../utils/whatsapp.ts';
@@ -1215,6 +1218,7 @@ export const AdminDashboardPage: React.FC = () => {
       ord.areaLandmark ? `Area / Landmark: ${ord.areaLandmark}` : '',
       `Delivery Address: ${ord.shippingAddress}`,
       `Payment Method: ${ord.paymentMethod}`,
+      ord.paymentDetail ? `Payment Account / Ref: ${ord.paymentDetail}` : '',
       ord.notes ? `Notes: ${ord.notes}` : '',
       `Items:\n  ${itemsText}`,
       `Total Amount: ${formatPKR(ord.totalAmount)}`
@@ -1524,6 +1528,9 @@ export const AdminDashboardPage: React.FC = () => {
                         <p className="text-[11px] text-slate-300">
                           {order.items.map((i) => `${i.productName} (x${i.quantity})`).join(', ')} ·{' '}
                           <span className="text-slate-400">{order.paymentMethod}</span>
+                          {order.paymentDetail ? (
+                            <span className="text-cyan-300 font-mono"> ({order.paymentDetail})</span>
+                          ) : null}
                         </p>
                       </div>
 
@@ -1998,9 +2005,14 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Payment Method: <strong className="text-white">{ord.paymentMethod}</strong></span>
+                        {ord.paymentDetail && (
+                          <span className="px-2 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-[10px]">
+                            {ord.paymentDetail}
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-extrabold text-cyan-300 font-mono tabular-nums">
                         Total: {formatPKR(ord.totalAmount)}
@@ -2628,6 +2640,227 @@ export const AdminDashboardPage: React.FC = () => {
                       }}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
                     />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CARD 5: PAYMENT & BANK / DEBIT CARD ACCOUNTS */}
+          <div className="bg-[#0f172a] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-xl">
+            <div className="border-b border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Landmark className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h4 className="font-bold text-white text-sm font-heading">
+                    5. Payment Accounts (JazzCash, EasyPaisa, NayaPay, Banks & Debit Cards)
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Checkout ke waqt customer ko yehi accounts nazar aate hain. Apne real accounts yahan update karein.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentAccounts: PaymentAccount[] =
+                      Array.isArray(settingsForm.paymentAccounts) && settingsForm.paymentAccounts.length > 0
+                        ? settingsForm.paymentAccounts
+                        : DEFAULT_PAYMENT_ACCOUNTS;
+                    const fresh: PaymentAccount = {
+                      id: `bank_${Date.now().toString(36)}`,
+                      group: 'bank_transfer',
+                      provider: 'New Bank / Wallet',
+                      accountTitle: 'VoltGlide Motors Pakistan',
+                      accountNumber: '',
+                      ibanOrRaast: '',
+                      instructions: 'Transfer kar ke screenshot / TID WhatsApp karein.',
+                      active: true
+                    };
+                    setSettingsForm({ ...settingsForm, paymentAccounts: [...currentAccounts, fresh] });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-cyan-500/40 text-cyan-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Bank / Wallet</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentAccounts: PaymentAccount[] =
+                      Array.isArray(settingsForm.paymentAccounts) && settingsForm.paymentAccounts.length > 0
+                        ? settingsForm.paymentAccounts
+                        : DEFAULT_PAYMENT_ACCOUNTS;
+                    const fresh: PaymentAccount = {
+                      id: `card_${Date.now().toString(36)}`,
+                      group: 'debit_card',
+                      provider: 'New Debit Card Account',
+                      accountTitle: 'VoltGlide Motors Merchant',
+                      accountNumber: '',
+                      ibanOrRaast: '',
+                      instructions: 'Visa / Mastercard / PayPak Debit Card payment accepted.',
+                      active: true
+                    };
+                    setSettingsForm({ ...settingsForm, paymentAccounts: [...currentAccounts, fresh] });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Debit Card Account</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {(Array.isArray(settingsForm.paymentAccounts) && settingsForm.paymentAccounts.length > 0
+                ? settingsForm.paymentAccounts
+                : DEFAULT_PAYMENT_ACCOUNTS
+              ).map((acc, idx, arr) => (
+                <div
+                  key={acc.id || idx}
+                  className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/70">
+                    <div className="flex items-center gap-2">
+                      {acc.group === 'debit_card' ? (
+                        <CreditCard className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Wallet className="w-4 h-4 text-cyan-400" />
+                      )}
+                      <span className="font-bold text-white text-xs">{acc.provider || 'Account'}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-semibold">
+                        {acc.group === 'debit_card' ? 'Debit / Credit Card' : 'Bank / Wallet Transfer'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={acc.active !== false}
+                          onChange={(e) => {
+                            const updated = [...arr];
+                            updated[idx] = { ...updated[idx], active: e.target.checked };
+                            setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                          }}
+                          className="rounded border-slate-700 text-cyan-500 focus:ring-0"
+                        />
+                        <span>Active</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = arr.filter((_, i) => i !== idx);
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 cursor-pointer"
+                        title="Remove account"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Bank / Wallet / Card Provider
+                      </label>
+                      <input
+                        type="text"
+                        value={acc.provider || ''}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = { ...updated[idx], provider: e.target.value };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Category Group
+                      </label>
+                      <select
+                        value={acc.group}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = {
+                            ...updated[idx],
+                            group: e.target.value === 'debit_card' ? 'debit_card' : 'bank_transfer'
+                          };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value="bank_transfer">Bank Transfer / Wallet (JazzCash, EasyPaisa, NayaPay, Bank)</option>
+                        <option value="debit_card">Debit / Credit Card Merchant Account</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Account Title
+                      </label>
+                      <input
+                        type="text"
+                        value={acc.accountTitle || ''}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = { ...updated[idx], accountTitle: e.target.value };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Account / Mobile / Card Settlement #
+                      </label>
+                      <input
+                        type="text"
+                        value={acc.accountNumber || ''}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = { ...updated[idx], accountNumber: e.target.value };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-cyan-300 font-mono text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        IBAN / Raast ID (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={acc.ibanOrRaast || ''}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = { ...updated[idx], ibanOrRaast: e.target.value };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-semibold mb-1">
+                        Customer Instruction Note
+                      </label>
+                      <input
+                        type="text"
+                        value={acc.instructions || ''}
+                        onChange={(e) => {
+                          const updated = [...arr];
+                          updated[idx] = { ...updated[idx], instructions: e.target.value };
+                          setSettingsForm({ ...settingsForm, paymentAccounts: updated });
+                        }}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -3697,7 +3930,14 @@ export const AdminDashboardPage: React.FC = () => {
                   <p className="text-slate-300">Area / Landmark: {selectedOrderSlip.areaLandmark}</p>
                 )}
                 <p className="text-cyan-300 font-semibold">{selectedOrderSlip.city}, Pakistan</p>
-                <p className="text-slate-300">Payment: <strong>{selectedOrderSlip.paymentMethod}</strong></p>
+                <p className="text-slate-300">
+                  Payment: <strong>{selectedOrderSlip.paymentMethod}</strong>
+                  {selectedOrderSlip.paymentDetail ? (
+                    <span className="block text-cyan-300 font-mono text-[11px]">
+                      {selectedOrderSlip.paymentDetail}
+                    </span>
+                  ) : null}
+                </p>
                 {selectedOrderSlip.notes && (
                   <p className="text-amber-300">Notes: {selectedOrderSlip.notes}</p>
                 )}

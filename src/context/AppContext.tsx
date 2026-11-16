@@ -194,7 +194,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...DEFAULT_SETTINGS,
             ...parsed,
             socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(parsed.socialLinks || {}) },
-            announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(parsed.announcementBar || {}) }
+            announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(parsed.announcementBar || {}) },
+            paymentAccounts:
+              Array.isArray(parsed.paymentAccounts) && parsed.paymentAccounts.length > 0
+                ? parsed.paymentAccounts
+                : DEFAULT_SETTINGS.paymentAccounts
           };
         }
       }
@@ -386,14 +390,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const data = await safeFetchJson<SiteSettings>('/api/settings');
       if (data && data.success && data.data) {
-        setSettings({
+        const mergedSettings: SiteSettings = {
           ...DEFAULT_SETTINGS,
           ...data.data,
           socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(data.data.socialLinks || {}) },
-          announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(data.data.announcementBar || {}) }
-        });
+          announcementBar: { ...DEFAULT_SETTINGS.announcementBar, ...(data.data.announcementBar || {}) },
+          paymentAccounts:
+            Array.isArray(data.data.paymentAccounts) && data.data.paymentAccounts.length > 0
+              ? data.data.paymentAccounts
+              : DEFAULT_SETTINGS.paymentAccounts
+        };
+        setSettings(mergedSettings);
         try {
-          localStorage.setItem('voltglide_settings', JSON.stringify(data.data));
+          localStorage.setItem('voltglide_settings', JSON.stringify(mergedSettings));
         } catch {}
       }
     } catch (err) {
@@ -478,7 +487,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...prev,
           ...cloudData,
           socialLinks: { ...prev.socialLinks, ...(cloudData.socialLinks || {}) },
-          announcementBar: { ...prev.announcementBar, ...(cloudData.announcementBar || {}) }
+          announcementBar: { ...prev.announcementBar, ...(cloudData.announcementBar || {}) },
+          paymentAccounts:
+            Array.isArray(cloudData.paymentAccounts) && cloudData.paymentAccounts.length > 0
+              ? cloudData.paymentAccounts
+              : prev.paymentAccounts && prev.paymentAccounts.length > 0
+              ? prev.paymentAccounts
+              : DEFAULT_SETTINGS.paymentAccounts
         };
         try {
           localStorage.setItem('voltglide_settings', JSON.stringify(merged));
@@ -560,7 +575,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       announcementBar: {
         ...settings.announcementBar,
         ...(newSettings.announcementBar || {})
-      }
+      },
+      paymentAccounts: Array.isArray(newSettings.paymentAccounts)
+        ? newSettings.paymentAccounts
+        : settings.paymentAccounts || DEFAULT_SETTINGS.paymentAccounts
     };
 
     // Instant optimistic update + Cloud Firestore sync
@@ -996,6 +1014,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       items: orderData.items || [],
       totalAmount: orderData.totalAmount || 0,
       paymentMethod: orderData.paymentMethod || 'Cash on Delivery',
+      paymentDetail: orderData.paymentDetail ? String(orderData.paymentDetail).trim().slice(0, 240) : '',
       notes: orderData.notes || '',
       status: 'Pending',
       createdAt: new Date().toISOString()

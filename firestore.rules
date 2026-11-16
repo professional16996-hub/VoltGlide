@@ -37,7 +37,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'phone', 'whatsappNumber', 'whatsappMessage', 'email', 'workingHours',
           'socialLinks', 'announcementBar', 'heroBadge', 'heroTagline',
-          'deliveryNotice', 'footerText', 'showrooms', 'updatedAt'
+          'deliveryNotice', 'footerText', 'showrooms', 'paymentAccounts', 'updatedAt'
         ])
         && data.phone is string && data.phone.size() >= 3 && data.phone.size() <= 40
         && data.whatsappNumber is string && data.whatsappNumber.size() >= 3 && data.whatsappNumber.size() <= 40
@@ -50,7 +50,8 @@ service cloud.firestore {
         && (!('footerText' in data) || (data.footerText is string && data.footerText.size() <= 500))
         && (!('socialLinks' in data) || data.socialLinks is map)
         && (!('announcementBar' in data) || data.announcementBar is map)
-        && (!('showrooms' in data) || (data.showrooms is list && data.showrooms.size() <= 12))
+        && (!('showrooms' in data) || (data.showrooms is list && data.showrooms.size() <= 12 && (data.showrooms.size() == 0 || data.showrooms[0] is map)))
+        && (!('paymentAccounts' in data) || (data.paymentAccounts is list && data.paymentAccounts.size() <= 20 && (data.paymentAccounts.size() == 0 || data.paymentAccounts[0] is map)))
         && data.updatedAt == request.time;
     }
 
@@ -83,7 +84,7 @@ service cloud.firestore {
           'id', 'customerId', 'accountType', 'customerName', 'customerPhone',
           'alternatePhone', 'customerEmail', 'cnic', 'shippingAddress',
           'areaLandmark', 'city', 'items', 'totalAmount', 'paymentMethod',
-          'notes', 'status', 'createdAt', 'updatedAt'
+          'paymentDetail', 'notes', 'status', 'createdAt', 'updatedAt'
         ])
         && isValidId(data.id)
         && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
@@ -93,6 +94,7 @@ service cloud.firestore {
         && (!('cnic' in data) || (data.cnic is string && data.cnic.size() <= 30))
         && (!('areaLandmark' in data) || (data.areaLandmark is string && data.areaLandmark.size() <= 160))
         && (!('accountType' in data) || data.accountType in ['Registered', 'Guest'])
+        && (!('paymentDetail' in data) || (data.paymentDetail is string && data.paymentDetail.size() <= 240))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 300))
         && data.city is string && data.city.size() >= 1 && data.city.size() <= 80
         && data.shippingAddress is string && data.shippingAddress.size() >= 1 && data.shippingAddress.size() <= 400
