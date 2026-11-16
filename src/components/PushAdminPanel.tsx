@@ -17,8 +17,10 @@ import {
   subscribeToCloudPushSubscriptions,
   subscribeToCloudNotifications,
   deleteCloudNotification,
-  deleteCloudPushSubscription
+  deleteCloudPushSubscription,
+  saveCloudNotification
 } from '../firebase.ts';
+import { buildPushApiUrl } from '../services/pushService.ts';
 
 interface PushAdminPanelProps {
   adminToken: string | null;
@@ -49,10 +51,11 @@ export const PushAdminPanel: React.FC<PushAdminPanelProps> = ({
     if (!adminToken) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/admin/push/overview', {
+      const res = await fetch(buildPushApiUrl('/api/admin/push/overview'), {
         headers: { Authorization: `Bearer ${adminToken}` }
       });
-      if (res.ok) {
+      const ctype = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.ok && ctype.includes('application/json')) {
         const json = await res.json();
         if (json && json.success && json.data) {
           setSubscriptions(json.data.subscriptions || []);
@@ -123,7 +126,7 @@ export const PushAdminPanel: React.FC<PushAdminPanelProps> = ({
 
     setIsSending(true);
     try {
-      const res = await fetch('/api/admin/push/send', {
+      const res = await fetch(buildPushApiUrl('/api/admin/push/send'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,15 +143,47 @@ export const PushAdminPanel: React.FC<PushAdminPanelProps> = ({
           targetPhone
         })
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        showToast(json.message || 'Push notification sent!', 'success');
+      const ctype = (res.headers.get('content-type') || '').toLowerCase();
+      if (ctype.includes('application/json')) {
+        const json = await res.json();
+        if (res.ok && json.success) {
+          showToast(json.message || 'Push notification sent!', 'success');
+          setTitle('');
+          setBody('');
+          setImageUrl('');
+          await loadOverview();
+          return;
+        }
+        showToast(json.message || 'Failed to send notification.', 'error');
+        return;
+      }
+
+      // Static host fallback (e.g. Netlify without backend /api): persist notification directly to Cloud Firestore
+      const fallbackRecord: PushNotificationRecord = {
+        id: `notif_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        title: title.trim(),
+        body: body.trim(),
+        category,
+        url: url.trim() || '/',
+        ...(imageUrl.trim() ? { imageUrl: imageUrl.trim() } : {}),
+        targetType,
+        ...(targetCustomerId ? { targetCustomerId } : {}),
+        ...(targetPhone ? { targetPhone } : {}),
+        sentBy: 'Admin',
+        sentCount: 0,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: new Date().toISOString()
+      };
+      const savedCloud = await saveCloudNotification(fallbackRecord);
+      if (savedCloud) {
+        setNotifications((prev) => [fallbackRecord, ...prev]);
+        showToast('Notification saved to Cloud History across all devices.', 'success');
         setTitle('');
         setBody('');
         setImageUrl('');
-        await loadOverview();
       } else {
-        showToast(json.message || 'Failed to send notification.', 'error');
+        showToast('Backend push API unreachable. Please deploy or connect the Express backend URL.', 'error');
       }
     } catch {
       showToast('Network error while sending push notification.', 'error');
@@ -159,10 +194,10 @@ export const PushAdminPanel: React.FC<PushAdminPanelProps> = ({
 
   const handleDeleteNotification = async (id: string) => {
     try {
-      await fetch(`/api/admin/push/notifications/${encodeURIComponent(id)}`, {
+      await fetch(buildPushApiUrl(`/api/admin/push/notifications/${encodeURIComponent(id)}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
-      });
+      }).catch(() => {});
       await deleteCloudNotification(id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       showToast('Notification deleted from permanent history.', 'info');
@@ -173,10 +208,10 @@ export const PushAdminPanel: React.FC<PushAdminPanelProps> = ({
 
   const handleDeleteSubscription = async (id: string) => {
     try {
-      await fetch(`/api/admin/push/subscriptions/${encodeURIComponent(id)}`, {
+      await fetch(buildPushApiUrl(`/api/admin/push/subscriptions/${encodeURIComponent(id)}`), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` }
-      });
+      }).catch(() => {});
       await deleteCloudPushSubscription(id);
       setSubscriptions((prev) => prev.filter((s) => s.id !== id));
       showToast('Device subscription removed.', 'info');

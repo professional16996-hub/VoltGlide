@@ -181,7 +181,7 @@ export const CartDrawer: React.FC = () => {
     if (cart.length === 0) return;
     const whatsappNum = settings?.whatsappNumber || '03210424424';
     const itemsList = cart.map((item, idx) => `${idx + 1}. ${item.product.name} (Qty: ${item.quantity}, Color: ${item.selectedColor || 'Standard'}) - PKR ${(item.product.price * item.quantity).toLocaleString()}`).join('\n');
-    const msg = `Hello VoltGlide Motors!\n\nI want to place an order via WhatsApp:\n\n*Cart Items:*\n${itemsList}\n\n*Total Amount:* PKR ${cartTotal.toLocaleString()}\n*Delivery:* Free Doorstep Delivery\n*City:* ${city}\n\nPlease share delivery details and dispatch time!`;
+    const msg = `Hello VoltGlide Motors!\n\nI want to place an order via WhatsApp:\n\n*Cart Items:*\n${itemsList}\n\n*Total Amount:* PKR ${cartTotal.toLocaleString()}\n*Delivery:* Doorstep Delivery\n*City:* ${city}\n\nPlease share delivery details and dispatch time!`;
     window.open(getWhatsAppUrl(msg, whatsappNum), '_blank');
   };
 
@@ -220,7 +220,7 @@ export const CartDrawer: React.FC = () => {
                 {completedOrder ? 'Order Confirmed' : isCheckingOut ? 'Express Checkout' : `Shopping Cart (${cartCount})`}
               </h3>
               <p className="text-[11px] text-slate-400">
-                {isCheckingOut ? 'Step 2 of 2: Delivery & Contact' : 'Free Doorstep Delivery Across Pakistan'}
+                {isCheckingOut ? 'Step 2 of 2: Delivery & Contact' : 'Nationwide Doorstep Delivery'}
               </p>
             </div>
           </div>
@@ -350,8 +350,8 @@ export const CartDrawer: React.FC = () => {
                   <span className="text-base font-black text-cyan-300 font-mono">{formatPKR(cartTotal)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                    FREE DOORSTEP DELIVERY
+                  <span className="text-[10px] font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2 py-0.5 rounded-full">
+                    DOORSTEP DELIVERY
                   </span>
                   <p className="text-[10px] text-slate-500 mt-0.5">{cart.length} scooty item in order</p>
                 </div>
@@ -656,7 +656,7 @@ export const CartDrawer: React.FC = () => {
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-emerald-400 font-bold block text-xs">Free Delivery</span>
+                  <span className="text-cyan-300 font-bold block text-xs">Doorstep Delivery</span>
                   <span className="text-[10px] text-slate-400">{paymentMethod}</span>
                 </div>
               </div>

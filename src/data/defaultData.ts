@@ -317,7 +317,7 @@ export const DEFAULT_BANNERS: Banner[] = [
     id: 'banner-01',
     tag: 'MEGA EV REVOLUTION 2026',
     title: 'Up to PKR 25,000 OFF on Electric Scooties',
-    subtitle: 'Save up to PKR 18,000 per month on petrol. Free helmet and fast home delivery across Pakistan included!',
+    subtitle: 'Save up to PKR 18,000 per month on petrol. Free helmet and doorstep delivery across Pakistan!',
     ctaText: 'Shop Electric Models',
     ctaLink: '/scooties?category=Electric',
     bgGradient: 'from-blue-900/90 via-slate-900/95 to-slate-950',
@@ -336,7 +336,7 @@ export const DEFAULT_BANNERS: Banner[] = [
   {
     id: 'banner-03',
     tag: 'INSTANT WHATSAPP BOOKING',
-    title: 'Order Direct via WhatsApp & Free Home Delivery',
+    title: 'Order Direct via WhatsApp & Doorstep Delivery',
     subtitle: 'Direct chat with our bike specialist at 0321-0424424. Cash on delivery available in Karachi, Lahore & Islamabad.',
     ctaText: 'Chat on WhatsApp',
     ctaLink: 'https://wa.me/923210424424',
@@ -423,12 +423,12 @@ export const DEFAULT_SETTINGS: import('../types.ts').SiteSettings = {
   },
   announcementBar: {
     enabled: true,
-    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan',
+    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Fast Delivery Across Pakistan',
     link: '/scooties'
   },
   heroBadge: 'PAKISTAN’S #1 OFFICIAL SCOOTY SHOWROOM',
   heroTagline: 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.',
-  deliveryNotice: 'Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
+  deliveryNotice: 'Doorstep delivery available in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
   footerText: 'VoltGlide Scooty Hub is Pakistan’s premier destination for cutting-edge electric scooties and dependable petrol scooters.',
   showrooms: [
     { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },

@@ -51,7 +51,7 @@ export const AboutPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 text-slate-200">
               <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-              <span>Free Doorstep Delivery</span>
+              <span>Nationwide Doorstep Delivery</span>
             </div>
           </div>
         </div>
@@ -75,7 +75,7 @@ export const AboutPage: React.FC = () => {
         <div className="text-center max-w-xl mx-auto space-y-2">
           <h3 className="text-2xl font-bold text-white font-heading">Our Showrooms & Dealerships</h3>
           <p className="text-xs text-slate-400">
-            Visit us in person for a free test ride, financing consultation, and immediate handover.
+            Visit us in person for showroom inspection, financing consultation, and immediate handover.
           </p>
         </div>
 

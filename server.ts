@@ -388,7 +388,7 @@ const INITIAL_BANNERS: Banner[] = [
     id: 'banner-01',
     tag: 'MEGA EV REVOLUTION 2026',
     title: 'Up to PKR 25,000 OFF on Electric Scooties',
-    subtitle: 'Save up to PKR 18,000 per month on petrol. Free helmet and fast home delivery across Pakistan included!',
+    subtitle: 'Save up to PKR 18,000 per month on petrol. Free helmet and doorstep delivery across Pakistan!',
     ctaText: 'Shop Electric Models',
     ctaLink: '/scooties?category=Electric',
     bgGradient: 'from-blue-900/90 via-slate-900/95 to-slate-950',
@@ -407,7 +407,7 @@ const INITIAL_BANNERS: Banner[] = [
   {
     id: 'banner-03',
     tag: 'INSTANT WHATSAPP BOOKING',
-    title: 'Order Direct via WhatsApp & Free Home Delivery',
+    title: 'Order Direct via WhatsApp & Doorstep Delivery',
     subtitle: 'Direct chat with our bike specialist at 0321-0424424. Cash on delivery available in Karachi, Lahore & Islamabad.',
     ctaText: 'Chat on WhatsApp',
     ctaLink: 'https://wa.me/923210424424',
@@ -550,12 +550,12 @@ const INITIAL_SETTINGS: SiteSettings = {
   },
   announcementBar: {
     enabled: true,
-    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan',
+    text: '⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Fast Delivery Across Pakistan',
     link: '/scooties'
   },
   heroBadge: 'PAKISTAN’S #1 OFFICIAL SCOOTY SHOWROOM',
   heroTagline: 'Ride with freedom, zero petrol expense, and unmatched Italian & Japanese engineering.',
-  deliveryNotice: 'Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
+  deliveryNotice: 'Doorstep delivery available in Lahore, Karachi & Islamabad. Cash on delivery available nationwide.',
   footerText: 'VoltGlide Scooty Hub is Pakistan’s premier destination for cutting-edge electric scooties and dependable petrol scooters.',
   showrooms: [
     { city: 'Lahore', title: 'Lahore Showroom', address: 'Main Boulevard, Gulberg III, Near Siddiq Trade Center' },
@@ -1691,8 +1691,9 @@ app.delete('/api/admin/reviews/:id', authenticateAdmin, (req, res) => {
   res.json({ success: true, message: 'Review deleted!' });
 });
 
-// Admin: Reset to default demo data
+// Admin: Reset to default demo data (preserves permanent VAPID keys & push subscribers/history!)
 app.post('/api/admin/reset-defaults', authenticateAdmin, (req, res) => {
+  const existing = loadDatabase();
   const initialData: DatabaseSchema = {
     products: INITIAL_PRODUCTS,
     orders: INITIAL_ORDERS,
@@ -1702,10 +1703,14 @@ app.post('/api/admin/reset-defaults', authenticateAdmin, (req, res) => {
     adminHash: hashPassword(DEFAULT_ADMIN_PASS),
     adminPin: DEFAULT_ADMIN_PIN,
     adminEmail: DEFAULT_ADMIN_EMAIL,
-    settings: INITIAL_SETTINGS
+    settings: INITIAL_SETTINGS,
+    ...(existing.vapidKeys ? { vapidKeys: existing.vapidKeys } : {}),
+    ...(existing.pushSubscriptions ? { pushSubscriptions: existing.pushSubscriptions } : {}),
+    ...(existing.notifications ? { notifications: existing.notifications } : {}),
+    ...(existing.deviceNotificationStates ? { deviceNotificationStates: existing.deviceNotificationStates } : {})
   };
   saveDatabase(initialData);
-  res.json({ success: true, message: 'Database reset to default demo dataset.' });
+  res.json({ success: true, message: 'Database reset to default demo dataset (push subscribers preserved).' });
 });
 
 // Admin: Inquiries list & Delete
@@ -2014,16 +2019,20 @@ app.use('/api', (err: any, req: express.Request, res: express.Response, next: ex
 
 // Start server with Vite middleware or static serving
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const distIndex = path.join(distDir, 'index.html');
+  const useProdStatic = process.env.NODE_ENV === 'production' && fs.existsSync(distIndex);
+
+  if (!useProdStatic) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(process.cwd(), 'dist')));
+    app.use(express.static(distDir));
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'));
+      res.sendFile(distIndex);
     });
   }
 

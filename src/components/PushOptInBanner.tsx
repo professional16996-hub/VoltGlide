@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BellRing, RefreshCw, AlertTriangle, X } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
+import { safeGetStorage, safeSetStorage } from '../utils/safeStorage.ts';
 
 const PROMPT_DISMISSED_KEY = 'voltglide_push_prompt_dismissed_at';
 
@@ -21,15 +22,11 @@ export const PushOptInBanner: React.FC = () => {
       return;
     }
 
-    try {
-      const lastDismissed = Number(localStorage.getItem(PROMPT_DISMISSED_KEY) || '0');
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      if (!lastDismissed || Date.now() - lastDismissed > threeDaysMs) {
-        const timer = setTimeout(() => setDismissed(false), 3500);
-        return () => clearTimeout(timer);
-      }
-    } catch {
-      setDismissed(false);
+    const lastDismissed = Number(safeGetStorage(PROMPT_DISMISSED_KEY) || '0');
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    if (!lastDismissed || Date.now() - lastDismissed > threeDaysMs) {
+      const timer = setTimeout(() => setDismissed(false), 3500);
+      return () => clearTimeout(timer);
     }
   }, [pushState.supported, pushState.status, pushState.isExpired]);
 
@@ -37,15 +34,13 @@ export const PushOptInBanner: React.FC = () => {
 
   const handleDismiss = () => {
     setDismissed(true);
-    try {
-      localStorage.setItem(PROMPT_DISMISSED_KEY, String(Date.now()));
-    } catch {}
+    safeSetStorage(PROMPT_DISMISSED_KEY, String(Date.now()));
   };
 
   const isExpired = pushState.status === 'expired' || pushState.isExpired;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-sm z-40 bg-[#0d1424]/95 border border-cyan-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed bottom-16 sm:bottom-4 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-sm z-40 bg-[#0d1424]/95 border border-cyan-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-start gap-3">
         <div
           className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${

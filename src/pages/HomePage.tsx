@@ -175,9 +175,9 @@ export const HomePage: React.FC = () => {
             <div className="p-4 sm:p-5 rounded-2xl surface-card surface-card-hover">
               <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs mb-1.5">
                 <MapPin className="w-4 h-4" />
-                <span>Modern Delivery</span>
+                <span>Nationwide Delivery</span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-white font-heading">Free Delivery</p>
+              <p className="text-xl sm:text-2xl font-black text-white font-heading">All Pakistan</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Doorstep delivery across Lahore, Karachi & Islamabad</p>
             </div>
           </div>
@@ -495,17 +495,17 @@ export const HomePage: React.FC = () => {
               Ready to Experience the Ride?
             </h3>
             <p className="text-xs sm:text-sm text-slate-300">
-              Book a free test ride at our Lahore, Karachi, or Islamabad showrooms, or place an order via WhatsApp with free doorstep delivery and cash on delivery!
+              Visit our Lahore, Karachi, or Islamabad showrooms, or place an order via WhatsApp with doorstep delivery and cash on delivery!
             </p>
             <div className="pt-2 flex flex-wrap justify-center gap-3">
               <a
-                href={getWhatsAppUrl('Hello VoltGlide! I want to book a free test ride at your showroom.')}
+                href={getWhatsAppUrl('Hello VoltGlide! I want to order or inquire about a scooty at your showroom.')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="py-3.5 px-7 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2"
               >
                 <WhatsAppIconSVG className="w-4 h-4 text-white" />
-                <span>Book Test Ride on WhatsApp</span>
+                <span>Order & Inquire on WhatsApp</span>
               </a>
               <button
                 onClick={() => navigate('contact')}

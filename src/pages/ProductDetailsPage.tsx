@@ -3,8 +3,7 @@ import { useApp } from '../context/AppContext.tsx';
 import { formatPKR, calculateDiscountPercent } from '../utils/formatters.ts';
 import {
   getProductOrderWhatsAppUrl,
-  getInstallmentInquiryWhatsAppUrl,
-  getTestRideWhatsAppUrl
+  getInstallmentInquiryWhatsAppUrl
 } from '../utils/whatsapp.ts';
 import { WhatsAppIconSVG } from '../components/FloatingWhatsApp.tsx';
 import { ProductCard } from '../components/ProductCard.tsx';
@@ -13,11 +12,9 @@ import {
   Zap,
   Fuel,
   ShieldCheck,
-  Truck,
   Check,
   ShoppingCart,
   ArrowLeft,
-  Calendar,
   Layers,
   Gauge,
   BatteryCharging,
@@ -208,12 +205,7 @@ export const ProductDetailsPage: React.FC = () => {
           )}
 
           {/* Value Badges */}
-          <div className="grid grid-cols-3 gap-3 pt-2 text-center text-xs">
-            <div className="surface-card p-3 rounded-2xl">
-              <Truck className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
-              <p className="font-bold text-white text-[11px]">Free Home Delivery</p>
-              <p className="text-[10px] text-slate-400">Doorstep across Pakistan</p>
-            </div>
+          <div className="grid grid-cols-2 gap-3 pt-2 text-center text-xs">
             <div className="surface-card p-3 rounded-2xl">
               <ShieldCheck className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
               <p className="font-bold text-white text-[11px]">Official Warranty</p>
@@ -322,17 +314,6 @@ export const ProductDetailsPage: React.FC = () => {
             >
               <WhatsAppIconSVG className="w-5 h-5 text-white" />
               Order on WhatsApp (0321-0424424)
-            </a>
-
-            {/* Showroom Test Ride button */}
-            <a
-              href={getTestRideWhatsAppUrl(product.name)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold border border-slate-800 flex items-center justify-center gap-2"
-            >
-              <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-              Book Free Showroom Test Ride in Lahore / Karachi / Islamabad
             </a>
           </div>
 

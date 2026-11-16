@@ -106,10 +106,52 @@ const MainContent: React.FC = () => {
   );
 };
 
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error?.message || 'Unexpected render error' };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('VoltGlide UI recovery caught error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#080a11] text-slate-100 flex items-center justify-center p-6">
+          <div className="max-w-md w-full rounded-2xl bg-[#0e121d] border border-white/10 p-6 text-center space-y-4 shadow-2xl">
+            <h2 className="text-xl font-bold text-white">VoltGlide Scooty Hub</h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Page load hone me temporary issue aya. Refresh karne ke liye neeche button dabain.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer"
+            >
+              Reload Website
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <AppProvider>
-      <MainContent />
-    </AppProvider>
+    <AppErrorBoundary>
+      <AppProvider>
+        <MainContent />
+      </AppProvider>
+    </AppErrorBoundary>
   );
 }

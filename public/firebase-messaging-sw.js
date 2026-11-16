@@ -1,6 +1,8 @@
 /* VoltGlide Permanent Background Push & FCM Service Worker */
 
 const DEFAULT_ICON = '/images/electric_scooty_blue_1793645309587.jpg';
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BCy4NGCEhIMn9LRuRNV1rTt4Jx8ferex3cwNsBpcty3gwdS_BCrSY3TbKU4yFO49eCiKM9ny2Y37qrNygOkJb0I';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
@@ -150,16 +152,21 @@ self.addEventListener('pushsubscriptionchange', (event) => {
           event.oldSubscription.options.applicationServerKey;
 
         if (!applicationServerKey) {
-          const keyRes = await fetch('/api/push/vapid-public-key');
-          if (keyRes.ok) {
-            const keyJson = await keyRes.json();
-            if (keyJson && keyJson.publicKey) {
-              applicationServerKey = urlBase64ToUint8Array(keyJson.publicKey);
+          try {
+            const keyRes = await fetch('/api/push/vapid-public-key');
+            const ctype = (keyRes.headers.get('content-type') || '').toLowerCase();
+            if (keyRes.ok && ctype.includes('application/json')) {
+              const keyJson = await keyRes.json();
+              if (keyJson && keyJson.publicKey) {
+                applicationServerKey = urlBase64ToUint8Array(keyJson.publicKey);
+              }
             }
-          }
+          } catch {}
         }
 
-        if (!applicationServerKey) return;
+        if (!applicationServerKey) {
+          applicationServerKey = urlBase64ToUint8Array(DEFAULT_VAPID_PUBLIC_KEY);
+        }
 
         const newSubscription = await self.registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -173,7 +180,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
             oldEndpoint: event.oldSubscription ? event.oldSubscription.endpoint : null,
             subscription: newSubscription.toJSON()
           })
-        });
+        }).catch(() => {});
       } catch (err) {
         console.error('[SW] Failed to auto-renew push subscription:', err);
       }

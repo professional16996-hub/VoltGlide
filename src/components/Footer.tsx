@@ -56,7 +56,7 @@ export const Footer: React.FC = () => {
             </div>
             <div>
               <h5 className="font-bold text-white text-sm">Nationwide Delivery</h5>
-              <p className="text-[11px] text-slate-400">Free delivery in LHR, KHI, ISB</p>
+              <p className="text-[11px] text-slate-400">Delivery in LHR, KHI, ISB & Nationwide</p>
             </div>
           </div>
         </div>

@@ -887,7 +887,7 @@ export const AdminDashboardPage: React.FC = () => {
     setBannerForm({
       tag: 'HOT PROMOTION',
       title: 'Summer Ride Deal in Pakistan',
-      subtitle: 'Free helmet & delivery on all models this week.',
+      subtitle: 'Special offer & doorstep delivery on all models this week.',
       ctaText: 'Shop Scooties',
       ctaLink: '/scooties',
       bgGradient: 'from-blue-900 via-slate-900 to-black',
@@ -2473,7 +2473,7 @@ export const AdminDashboardPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Free Helmet & Delivery Across Pakistan"
+                  placeholder="⚡ MEGA SCOOTY DEAL 2026: Up to PKR 25,000 OFF on Electric Scooties! Fast Delivery Across Pakistan"
                   value={settingsForm.announcementBar?.text || ''}
                   onChange={(e) =>
                     setSettingsForm({
@@ -2543,7 +2543,7 @@ export const AdminDashboardPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="Free doorstep delivery in Lahore, Karachi & Islamabad. Cash on delivery available nationwide."
+                  placeholder="Doorstep delivery available in Lahore, Karachi & Islamabad. Cash on delivery available nationwide."
                   value={settingsForm.deliveryNotice || ''}
                   onChange={(e) => setSettingsForm({ ...settingsForm, deliveryNotice: e.target.value })}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan-400"

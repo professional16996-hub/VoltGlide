@@ -19,11 +19,13 @@ import {
   subscribeToCloudProducts,
   subscribeToCloudBanners,
   subscribeToCloudNotifications,
+  fetchCloudNotifications,
   fetchCloudDeviceNotificationState,
   saveCloudDeviceNotificationState
 } from '../firebase.ts';
 import {
   PushClientState,
+  buildPushApiUrl,
   detectPushPlatform,
   getBrowserLabel,
   getOrCreatePersistentDeviceId,
@@ -33,6 +35,12 @@ import {
   subscribeToPermanentPush,
   unsubscribeFromPermanentPush
 } from '../services/pushService.ts';
+import {
+  safeGetStorage,
+  safeSetStorage,
+  safeRemoveStorage,
+  safeNotificationPermission
+} from '../utils/safeStorage.ts';
 
 function normalizePhonePK(phone?: string): string {
   const digits = (phone || '').replace(/[^0-9]/g, '');
@@ -224,13 +232,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [adminToken, setAdminToken] = useState<string | null>(() => {
-    return localStorage.getItem('voltglide_admin_token');
+    return safeGetStorage('voltglide_admin_token');
   });
 
   // Customer Account state
   const [customer, setCustomer] = useState<CustomerUser | null>(() => {
     try {
-      const saved = localStorage.getItem('voltglide_customer');
+      const saved = safeGetStorage('voltglide_customer');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -238,7 +246,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [customerToken, setCustomerToken] = useState<string | null>(() => {
-    return localStorage.getItem('voltglide_customer_token');
+    return safeGetStorage('voltglide_customer_token');
   });
 
   const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
@@ -794,8 +802,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (res && res.success && res.data) {
         setCustomer(res.data.customer);
         setCustomerToken(res.data.token);
-        localStorage.setItem('voltglide_customer', JSON.stringify(res.data.customer));
-        localStorage.setItem('voltglide_customer_token', res.data.token);
+        safeSetStorage('voltglide_customer', JSON.stringify(res.data.customer));
+        safeSetStorage('voltglide_customer_token', res.data.token);
         showToast(res.message || `Welcome back, ${res.data.customer.name}!`, 'success');
         return { success: true, message: res.message || 'Logged in successfully' };
       }
@@ -825,8 +833,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const localToken = `vg-cust-${found.id}-${Date.now()}`;
         setCustomer(customerObj);
         setCustomerToken(localToken);
-        localStorage.setItem('voltglide_customer', JSON.stringify(customerObj));
-        localStorage.setItem('voltglide_customer_token', localToken);
+        safeSetStorage('voltglide_customer', JSON.stringify(customerObj));
+        safeSetStorage('voltglide_customer_token', localToken);
         showToast(`Welcome back, ${customerObj.name}!`, 'success');
         return { success: true, message: 'Logged in successfully' };
       }
@@ -845,8 +853,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const quickToken = `vg-cust-${quickCust.id}-${Date.now()}`;
       setCustomer(quickCust);
       setCustomerToken(quickToken);
-      localStorage.setItem('voltglide_customer', JSON.stringify(quickCust));
-      localStorage.setItem('voltglide_customer_token', quickToken);
+      safeSetStorage('voltglide_customer', JSON.stringify(quickCust));
+      safeSetStorage('voltglide_customer_token', quickToken);
       showToast('Khush Amdeed! Logged in successfully.', 'success');
       return { success: true, message: 'Logged in successfully' };
     }
@@ -875,8 +883,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (res && res.success && res.data) {
         setCustomer(res.data.customer);
         setCustomerToken(res.data.token);
-        localStorage.setItem('voltglide_customer', JSON.stringify(res.data.customer));
-        localStorage.setItem('voltglide_customer_token', res.data.token);
+        safeSetStorage('voltglide_customer', JSON.stringify(res.data.customer));
+        safeSetStorage('voltglide_customer_token', res.data.token);
         showToast(res.message || 'Account created successfully!', 'success');
         return { success: true, message: res.message || 'Account created successfully' };
       }
@@ -895,15 +903,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const localToken = `vg-cust-${newCustomer.id}-${Date.now()}`;
     setCustomer(newCustomer);
     setCustomerToken(localToken);
-    localStorage.setItem('voltglide_customer', JSON.stringify(newCustomer));
-    localStorage.setItem('voltglide_customer_token', localToken);
+    safeSetStorage('voltglide_customer', JSON.stringify(newCustomer));
+    safeSetStorage('voltglide_customer_token', localToken);
     
     // Save to local registered list
     try {
-      const saved = localStorage.getItem('voltglide_registered_customers');
+      const saved = safeGetStorage('voltglide_registered_customers');
       const list = saved ? JSON.parse(saved) : [];
       list.push({ ...newCustomer, password: data.password });
-      localStorage.setItem('voltglide_registered_customers', JSON.stringify(list));
+      safeSetStorage('voltglide_registered_customers', JSON.stringify(list));
     } catch {}
 
     // Link previous orders with this phone
@@ -918,8 +926,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCustomer(null);
     setCustomerToken(null);
     setCustomerOrders([]);
-    localStorage.removeItem('voltglide_customer');
-    localStorage.removeItem('voltglide_customer_token');
+    safeRemoveStorage('voltglide_customer');
+    safeRemoveStorage('voltglide_customer_token');
     showToast('Aap account se logout ho gaye hain.', 'info');
   };
 
@@ -931,7 +939,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...data
     };
     setCustomer(updated);
-    localStorage.setItem('voltglide_customer', JSON.stringify(updated));
+    safeSetStorage('voltglide_customer', JSON.stringify(updated));
 
     try {
       await safeFetchJson('/api/customer/profile', {
@@ -1091,7 +1099,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Admin authentication
   const adminLogin = (token: string) => {
     setAdminToken(token);
-    localStorage.setItem('voltglide_admin_token', token);
+    safeSetStorage('voltglide_admin_token', token);
     showToast('Admin logged in successfully', 'success');
   };
 
@@ -1103,7 +1111,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }).catch(() => {});
     }
     setAdminToken(null);
-    localStorage.removeItem('voltglide_admin_token');
+    safeRemoveStorage('voltglide_admin_token');
     showToast('Admin logged out', 'info');
     navigate('home');
   };
@@ -1111,9 +1119,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // ================= PERMANENT PUSH NOTIFICATIONS & PERSISTENT HISTORY =================
   const [pushState, setPushState] = useState<PushClientState>(() => ({
     supported: isWebPushSupported(),
-    permission: typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
+    permission: safeNotificationPermission(),
     status: 'none',
-    remembered: typeof localStorage !== 'undefined' && localStorage.getItem('voltglide_push_remembered') === 'true',
+    remembered: safeGetStorage('voltglide_push_remembered') === 'true',
     isExpired: false,
     platform: detectPushPlatform(),
     browserLabel: getBrowserLabel(),
@@ -1197,8 +1205,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...(customer?.id ? { customerId: customer.id } : {}),
         ...(customer?.phone ? { customerPhone: customer.phone } : {})
       });
-      const res = await fetch(`/api/notifications?${qs.toString()}`);
-      if (res.ok) {
+      const res = await fetch(buildPushApiUrl(`/api/notifications?${qs.toString()}`));
+      const ctype = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.ok && ctype.includes('application/json')) {
         const json = await res.json();
         if (json && json.success && Array.isArray(json.data)) {
           setNotifications(json.data);
@@ -1209,7 +1218,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       }
     } catch {}
-  }, [customer]);
+
+    // Fallback directly to Cloud Firestore when /api is unavailable (e.g. static hosting)
+    try {
+      const cloudList = await fetchCloudNotifications();
+      if (cloudList.length > 0) {
+        setNotifications(
+          filterNotificationsForCurrentUser(cloudList, dismissedNotificationIds, clearedBeforeIso)
+        );
+      }
+    } catch {}
+  }, [customer, filterNotificationsForCurrentUser, dismissedNotificationIds, clearedBeforeIso]);
 
   // Verify existing push subscription on boot and whenever customer logs in (NEVER clears on logout)
   useEffect(() => {
@@ -1286,6 +1305,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPushState(res.state);
       showToast(res.message, res.success ? 'success' : 'error');
       return res.success;
+    } catch (err) {
+      console.warn('Enable push error:', err);
+      showToast('Could not activate notifications on this browser. Please allow Notifications in site settings.', 'error');
+      return false;
     } finally {
       setIsPushLoading(false);
     }
@@ -1297,6 +1320,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const next = await unsubscribeFromPermanentPush();
       setPushState(next);
       showToast('Push notifications paused on this device.', 'info');
+    } catch (err) {
+      console.warn('Disable push error:', err);
     } finally {
       setIsPushLoading(false);
     }
