@@ -492,6 +492,7 @@ export async function sendBackgroundPushNotification<T extends PushDbSlice>(
   loadDb: () => T,
   saveDb: (db: T) => void,
   params: {
+    id?: string;
     title: string;
     body: string;
     category?: PushNotificationCategory;
@@ -526,7 +527,8 @@ export async function sendBackgroundPushNotification<T extends PushDbSlice>(
     return true;
   });
 
-  const notifId = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const cleanParamId = params.id ? params.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128) : '';
+  const notifId = cleanParamId || `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = new Date().toISOString();
   const validCategories: PushNotificationCategory[] = ['offer', 'order', 'new_arrival', 'announcement', 'general'];
   const category = params.category && validCategories.includes(params.category) ? params.category : 'general';

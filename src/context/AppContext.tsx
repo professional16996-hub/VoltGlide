@@ -21,7 +21,9 @@ import {
   subscribeToCloudNotifications,
   fetchCloudNotifications,
   fetchCloudDeviceNotificationState,
-  saveCloudDeviceNotificationState
+  saveCloudDeviceNotificationState,
+  saveCloudNotification,
+  listenForegroundFcmMessages
 } from '../firebase.ts';
 import {
   PushClientState,
@@ -32,6 +34,8 @@ import {
   inspectAndSyncPushState,
   isIosSafariWithoutPwa,
   isWebPushSupported,
+  markSystemNotificationShown,
+  showSystemTrayNotification,
   subscribeToPermanentPush,
   unsubscribeFromPermanentPush
 } from '../services/pushService.ts';
@@ -135,6 +139,7 @@ interface AppContextType {
   unreadNotificationCount: number;
   enablePermanentPush: () => Promise<boolean>;
   disablePermanentPush: () => Promise<void>;
+  sendTestNotification: () => Promise<boolean>;
   refreshNotifications: () => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
@@ -519,7 +524,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const unsubCloudOrders = subscribeToCloudOrders((cloudOrders) => {
       if (cloudOrders.length === 0) return;
 
-      // Merge cloud orders into localStorage (Cloud Firestore status takes priority)
+      // Capture previous known statuses to detect real-time order updates for this customer/device
+      const prevStatusMap = new Map<string, Order['status']>();
+      let localOrderIds = new Set<string>();
       let mergedAll: Order[] = cloudOrders;
       try {
         const saved = localStorage.getItem('voltglide_orders');
@@ -527,11 +534,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const map = new Map<string, Order>();
         if (Array.isArray(localParsed)) {
           localParsed.forEach((o) => {
-            if (o && o.id) map.set(o.id, o);
+            if (o && o.id) {
+              map.set(o.id, o);
+              prevStatusMap.set(o.id, o.status);
+            }
           });
         }
+        const savedMyIds = localStorage.getItem('voltglide_my_order_ids');
+        if (savedMyIds) {
+          const parsedIds = JSON.parse(savedMyIds);
+          if (Array.isArray(parsedIds)) localOrderIds = new Set(parsedIds);
+        }
+
+        const activeCust = customerRef.current;
+        const cleanCustPhone = normalizePhonePK(activeCust?.phone);
+
         cloudOrders.forEach((co) => {
-          if (co && co.id) map.set(co.id, co);
+          if (co && co.id) {
+            const oldStatus = prevStatusMap.get(co.id);
+            const belongsToThisUserOrDevice =
+              localOrderIds.has(co.id) ||
+              Boolean(activeCust?.id && co.customerId === activeCust.id) ||
+              Boolean(cleanCustPhone && normalizePhonePK(co.customerPhone) === cleanCustPhone);
+
+            if (oldStatus && co.status && oldStatus !== co.status && belongsToThisUserOrDevice) {
+              const statusMsgMap: Record<string, string> = {
+                Confirmed: `Your VoltGlide order #${co.id} is CONFIRMED! Dispatch team is preparing your scooty.`,
+                Shipped: `Great news! Order #${co.id} has been SHIPPED to ${co.city}.`,
+                Delivered: `Order #${co.id} has been DELIVERED. Enjoy your VoltGlide ride!`,
+                Cancelled: `Order #${co.id} status changed to Cancelled. Contact WhatsApp helpline if needed.`
+              };
+              const notifRecord: PushNotificationRecord = {
+                id: `notif_order_${co.id}_${co.status}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+                title: `Order #${co.id} · ${co.status}`,
+                body: statusMsgMap[co.status] || `Your order #${co.id} status is now ${co.status}.`,
+                category: 'order',
+                url: '/customer-account',
+                targetType: 'customer',
+                ...(co.customerId ? { targetCustomerId: co.customerId } : {}),
+                ...(co.customerPhone ? { targetPhone: co.customerPhone } : {}),
+                sentBy: 'System',
+                sentCount: 1,
+                failedCount: 0,
+                expiredCount: 0,
+                createdAt: new Date().toISOString()
+              };
+              pushLocalAndSystemNotification(notifRecord);
+            }
+            map.set(co.id, co);
+          }
         });
         mergedAll = Array.from(map.values()).sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -1026,6 +1077,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const ordersList: Order[] = existing ? JSON.parse(existing) : [];
       ordersList.unshift(newOrder);
       localStorage.setItem('voltglide_orders', JSON.stringify(ordersList));
+
+      const myIdsRaw = localStorage.getItem('voltglide_my_order_ids');
+      const myIds: string[] = myIdsRaw ? JSON.parse(myIdsRaw) : [];
+      if (!myIds.includes(localOrderId)) {
+        localStorage.setItem('voltglide_my_order_ids', JSON.stringify([localOrderId, ...myIds].slice(0, 100)));
+      }
     } catch (e) {
       console.warn('LocalStorage order write warning:', e);
     }
@@ -1034,7 +1091,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     clearCart();
     setCustomerOrders((prev) => [newOrder, ...prev.filter(o => o.id !== localOrderId)]);
 
-    // 3. Also notify other browser tabs
+    // 3. Create instant Order Placed notification in Bell Icon + Mobile Notification Bar + Cloud History
+    const orderNotif: PushNotificationRecord = {
+      id: `notif_order_${localOrderId}_placed`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+      title: `Order Confirmed · #${localOrderId}`,
+      body: `Thank you ${newOrder.customerName}! Your scooty order (PKR ${newOrder.totalAmount.toLocaleString()} · ${newOrder.paymentMethod}) has been booked.`,
+      category: 'order',
+      url: '/customer-account',
+      targetType: 'customer',
+      ...(newOrder.customerId ? { targetCustomerId: newOrder.customerId } : {}),
+      ...(newOrder.customerPhone ? { targetPhone: newOrder.customerPhone } : {}),
+      sentBy: 'System',
+      sentCount: 1,
+      failedCount: 0,
+      expiredCount: 0,
+      createdAt: newOrder.createdAt
+    };
+    pushLocalAndSystemNotification(orderNotif);
+    saveCloudNotification(orderNotif).catch(() => {});
+
+    // 4. Also notify other browser tabs
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('voltglide_sync_channel');
@@ -1043,10 +1119,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch {}
 
-    // 4. Sync order to Cloud Firestore across all devices (works on Netlify too)
+    // 5. Sync order to Cloud Firestore across all devices (works on Netlify too)
     saveCloudOrder(newOrder).catch(() => {});
 
-    // 5. Try sending to the backend server (if server is running)
+    // 6. Try sending to the backend server (if server is running)
     try {
       const payload: Partial<Order> = {
         ...newOrder
@@ -1084,7 +1160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Server API offline/Netlify static mode, order recorded locally:', err);
     }
 
-    // 5. On Netlify or offline, order is successfully created with zero error
+    // 7. On Netlify or offline, order is successfully created with zero error
     showToast(`Order #${localOrderId} booked successfully!`, 'success');
     return { success: true, orderId: localOrderId, message: 'Order booked successfully!' };
   };
@@ -1147,6 +1223,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     iosNeedsHomeScreen: isIosSafariWithoutPwa()
   }));
   const [isPushLoading, setIsPushLoading] = useState(false);
+  const [localNotifications, setLocalNotifications] = useState<PushNotificationRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('voltglide_local_notifications');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    // Default showroom alerts so Bell Icon always displays helpful notifications until dismissed/cleared
+    const nowIso = new Date().toISOString();
+    return [
+      {
+        id: 'notif_showroom_deal_2026',
+        title: 'Mega Scooty Deal 2026: Up to PKR 25,000 OFF!',
+        body: 'Special discounts active on VoltGlide Electric Scooties with doorstep delivery & 0% markup installment plans.',
+        category: 'offer',
+        url: '/scooties',
+        targetType: 'all',
+        sentBy: 'System',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: nowIso
+      },
+      {
+        id: 'notif_showroom_alerts_guide',
+        title: 'Welcome to VoltGlide Scooty Hub Alerts',
+        body: 'Tap Allow Notifications to receive live order dispatch updates, new scooty launches & flash deals right in your phone notification bar.',
+        category: 'announcement',
+        url: '/customer-account',
+        targetType: 'all',
+        sentBy: 'System',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: nowIso
+      }
+    ];
+  });
   const [notifications, setNotifications] = useState<PushNotificationRecord[]>([]);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
     try {
@@ -1172,7 +1287,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
 
-  // Persist local notification read/dismissed cache (separate from subscriptions!)
+  const appBootTimestampRef = useRef<number>(Date.now());
+  const pushStatusRef = useRef<PushClientState['status']>(pushState.status);
+  useEffect(() => {
+    pushStatusRef.current = pushState.status;
+  }, [pushState.status]);
+
+  // Persist local notification items & read/dismissed caches (separate from subscriptions!)
+  useEffect(() => {
+    try {
+      localStorage.setItem('voltglide_local_notifications', JSON.stringify(localNotifications.slice(0, 80)));
+    } catch {}
+  }, [localNotifications]);
+
   useEffect(() => {
     try {
       localStorage.setItem('voltglide_notif_read_ids', JSON.stringify(readNotificationIds.slice(-450)));
@@ -1197,7 +1324,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     (
       rawList: PushNotificationRecord[],
       dismissedList: string[],
-      clearedBefore: string
+      clearedBefore: string,
+      localIdsSet?: Set<string>
     ) => {
       const dismissedSet = new Set(dismissedList);
       const clearedMs = clearedBefore ? new Date(clearedBefore).getTime() : 0;
@@ -1206,6 +1334,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (dismissedSet.has(n.id)) return false;
         if (clearedMs && new Date(n.createdAt).getTime() <= clearedMs) return false;
         if (n.targetType === 'customer') {
+          if (localIdsSet && localIdsSet.has(n.id)) return true;
           const idMatch = customer?.id && n.targetCustomerId === customer.id;
           const phoneMatch = phoneNorm && normalizePhonePK(n.targetPhone) === phoneNorm;
           return Boolean(idMatch || phoneMatch);
@@ -1216,7 +1345,90 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     [customer]
   );
 
+  // Push any brand-new notification to both Bell Icon state AND Mobile System Notification Bar
+  const pushLocalAndSystemNotification = useCallback(
+    (record: PushNotificationRecord, forceSystemBar = false) => {
+      setLocalNotifications((prev) => [record, ...prev.filter((x) => x.id !== record.id)].slice(0, 80));
+      setNotifications((prev) =>
+        [record, ...prev.filter((x) => x.id !== record.id)].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      );
+
+      if (
+        safeNotificationPermission() === 'granted' &&
+        pushStatusRef.current !== 'unsubscribed'
+      ) {
+        showSystemTrayNotification({
+          id: record.id,
+          title: record.title,
+          body: record.body,
+          url: record.url,
+          imageUrl: record.imageUrl,
+          category: record.category,
+          force: forceSystemBar
+        }).catch(() => false);
+      }
+    },
+    []
+  );
+
+  const localNotifsRef = useRef<PushNotificationRecord[]>(localNotifications);
+  useEffect(() => {
+    localNotifsRef.current = localNotifications;
+  }, [localNotifications]);
+
+  const mergeAllNotificationSources = useCallback(
+    (incomingList: PushNotificationRecord[]) => {
+      const localList = localNotifsRef.current;
+      const localIdSet = new Set(localList.map((n) => n.id));
+      const mergedMap = new Map<string, PushNotificationRecord>();
+      for (const n of localList) mergedMap.set(n.id, n);
+      for (const n of incomingList) mergedMap.set(n.id, n);
+      const sorted = Array.from(mergedMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      return filterNotificationsForCurrentUser(
+        sorted,
+        dismissedNotificationIds,
+        clearedBeforeIso,
+        localIdSet
+      );
+    },
+    [filterNotificationsForCurrentUser, dismissedNotificationIds, clearedBeforeIso]
+  );
+
+  // Surface newly arrived Cloud/Backend notifications in Mobile Notification Bar when permission is granted
+  const maybeShowSystemBarForFreshNotifs = useCallback(
+    (visibleList: PushNotificationRecord[]) => {
+      if (safeNotificationPermission() !== 'granted') return;
+      if (pushStatusRef.current === 'unsubscribed') return;
+
+      const bootWindowStart = appBootTimestampRef.current - 60000;
+      const readSet = new Set(readNotificationIds);
+
+      for (const notif of visibleList.slice(0, 5)) {
+        if (readSet.has(notif.id)) continue;
+        const createdMs = new Date(notif.createdAt).getTime();
+        // Trigger system bar for notifications created right around or after boot (or within last 2 min)
+        if (!Number.isNaN(createdMs) && createdMs >= bootWindowStart) {
+          showSystemTrayNotification({
+            id: notif.id,
+            title: notif.title,
+            body: notif.body,
+            url: notif.url,
+            imageUrl: notif.imageUrl,
+            category: notif.category
+          }).catch(() => false);
+        }
+      }
+    },
+    [readNotificationIds]
+  );
+
   const refreshNotifications = useCallback(async () => {
+    const mergedInputs: PushNotificationRecord[] = [];
+
     try {
       const deviceId = await getOrCreatePersistentDeviceId();
       const qs = new URLSearchParams({
@@ -1229,25 +1441,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (res.ok && ctype.includes('application/json')) {
         const json = await res.json();
         if (json && json.success && Array.isArray(json.data)) {
-          setNotifications(json.data);
+          mergedInputs.push(...json.data);
           if (Array.isArray(json.readIds)) {
             setReadNotificationIds((prev) => Array.from(new Set([...prev, ...json.readIds])));
           }
-          return;
         }
       }
     } catch {}
 
-    // Fallback directly to Cloud Firestore when /api is unavailable (e.g. static hosting)
+    // Always also merge Cloud Firestore notifications (so Netlify & Cloud Run share 100% live alerts)
     try {
       const cloudList = await fetchCloudNotifications();
       if (cloudList.length > 0) {
-        setNotifications(
-          filterNotificationsForCurrentUser(cloudList, dismissedNotificationIds, clearedBeforeIso)
-        );
+        mergedInputs.push(...cloudList);
       }
     } catch {}
-  }, [customer, filterNotificationsForCurrentUser, dismissedNotificationIds, clearedBeforeIso]);
+
+    const visible = mergeAllNotificationSources(mergedInputs);
+    setNotifications(visible);
+    maybeShowSystemBarForFreshNotifs(visible);
+  }, [customer, mergeAllNotificationSources, maybeShowSystemBarForFreshNotifs]);
 
   // Verify existing push subscription on boot and whenever customer logs in (NEVER clears on logout)
   useEffect(() => {
@@ -1280,22 +1493,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [customer]);
 
-  // Real-time Firestore notification listener + backend sync
+  // Real-time Firestore notification listener + FCM Foreground listener
   useEffect(() => {
     refreshNotifications();
-    const unsub = subscribeToCloudNotifications((cloudNotifs) => {
-      setNotifications((prev) => {
-        const mergedMap = new Map<string, PushNotificationRecord>();
-        for (const n of prev) mergedMap.set(n.id, n);
-        for (const n of cloudNotifs) mergedMap.set(n.id, n);
-        const merged = Array.from(mergedMap.values()).sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        return filterNotificationsForCurrentUser(merged, dismissedNotificationIds, clearedBeforeIso);
-      });
+    const unsubCloud = subscribeToCloudNotifications((cloudNotifs) => {
+      const visible = mergeAllNotificationSources(cloudNotifs);
+      setNotifications(visible);
+      maybeShowSystemBarForFreshNotifs(visible);
     });
-    return () => unsub();
-  }, [refreshNotifications, filterNotificationsForCurrentUser, dismissedNotificationIds, clearedBeforeIso]);
+
+    let unsubFcm = () => {};
+    listenForegroundFcmMessages((payload) => {
+      const record: PushNotificationRecord = {
+        id: payload.notificationId,
+        title: payload.title,
+        body: payload.body,
+        category: (['offer', 'order', 'new_arrival', 'announcement', 'general'].includes(
+          payload.category || ''
+        )
+          ? payload.category
+          : 'general') as PushNotificationRecord['category'],
+        url: payload.url || '/',
+        ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {}),
+        targetType: 'all',
+        sentBy: 'Admin',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: new Date().toISOString()
+      };
+      pushLocalAndSystemNotification(record);
+    }).then((fn) => {
+      unsubFcm = fn;
+    });
+
+    return () => {
+      unsubCloud();
+      unsubFcm();
+    };
+  }, [refreshNotifications, mergeAllNotificationSources, maybeShowSystemBarForFreshNotifs, pushLocalAndSystemNotification]);
 
   // Listen for Service Worker messages (incoming push & click navigation)
   useEffect(() => {
@@ -1304,6 +1540,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const msg = event.data;
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'PUSH_NOTIFICATION_RECEIVED') {
+        if (msg.payload?.notificationId) {
+          // Already displayed in OS bar by SW push handler
+          markSystemNotificationShown(String(msg.payload.notificationId));
+        }
         refreshNotifications();
       } else if (msg.type === 'PUSH_NOTIFICATION_CLICKED') {
         refreshNotifications();
@@ -1315,7 +1555,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     navigator.serviceWorker.addEventListener('message', handleSwMessage);
     return () => navigator.serviceWorker.removeEventListener('message', handleSwMessage);
-  }, [refreshNotifications]);
+  }, [refreshNotifications, navigate]);
 
   const enablePermanentPush = async (): Promise<boolean> => {
     setIsPushLoading(true);
@@ -1323,6 +1563,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const res = await subscribeToPermanentPush(customer);
       setPushState(res.state);
       showToast(res.message, res.success ? 'success' : 'error');
+      if (res.success) {
+        const welcomeRecord: PushNotificationRecord = {
+          id: `notif_push_enabled_${Date.now()}`,
+          title: 'Mobile & Browser Notifications Activated!',
+          body: 'You will now receive live order updates, flash offers & new scooty alerts in your phone notification bar.',
+          category: 'announcement',
+          url: '/scooties',
+          targetType: 'all',
+          sentBy: 'System',
+          sentCount: 1,
+          failedCount: 0,
+          expiredCount: 0,
+          createdAt: new Date().toISOString()
+        };
+        setLocalNotifications((prev) => [welcomeRecord, ...prev.slice(0, 79)]);
+        setNotifications((prev) => [welcomeRecord, ...prev]);
+      }
       return res.success;
     } catch (err) {
       console.warn('Enable push error:', err);
@@ -1331,6 +1588,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsPushLoading(false);
     }
+  };
+
+  const sendTestNotification = async (): Promise<boolean> => {
+    if (safeNotificationPermission() !== 'granted') {
+      return enablePermanentPush();
+    }
+    const testId = `notif_test_${Date.now()}`;
+    const testRecord: PushNotificationRecord = {
+      id: testId,
+      title: 'VoltGlide Test Alert · Mobile Bar Working!',
+      body: 'Great! Notifications are active and showing in your device notification bar & bell icon.',
+      category: 'general',
+      url: '/scooties',
+      targetType: 'all',
+      sentBy: 'System',
+      sentCount: 1,
+      failedCount: 0,
+      expiredCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    setLocalNotifications((prev) => [testRecord, ...prev.slice(0, 79)]);
+    setNotifications((prev) => [testRecord, ...prev]);
+    const shown = await showSystemTrayNotification({
+      id: testId,
+      title: testRecord.title,
+      body: testRecord.body,
+      url: testRecord.url,
+      category: testRecord.category,
+      force: true
+    });
+    showToast(
+      shown
+        ? 'Notification sent to your phone notification bar!'
+        : 'Added to Bell Icon! Ensure browser notifications are allowed in phone settings.',
+      shown ? 'success' : 'info'
+    );
+    return shown;
   };
 
   const disablePermanentPush = async (): Promise<void> => {
@@ -1387,6 +1681,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const nextRead = Array.from(new Set([...readNotificationIds, id]));
     setDismissedNotificationIds(nextDismissed);
     setReadNotificationIds(nextRead);
+    setLocalNotifications((prev) => prev.filter((n) => n.id !== id));
     setNotifications((prev) => prev.filter((n) => n.id !== id));
 
     const deviceId = await getOrCreatePersistentDeviceId();
@@ -1412,6 +1707,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDismissedNotificationIds(nextDismissed);
     setReadNotificationIds(nextRead);
     setClearedBeforeIso(nowIso);
+    setLocalNotifications([]);
     setNotifications([]);
 
     const deviceId = await getOrCreatePersistentDeviceId();
@@ -1492,6 +1788,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unreadNotificationCount,
         enablePermanentPush,
         disablePermanentPush,
+        sendTestNotification,
         refreshNotifications,
         markNotificationRead,
         markAllNotificationsRead,

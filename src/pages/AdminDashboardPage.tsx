@@ -74,7 +74,8 @@ import {
   saveCloudProduct,
   deleteCloudProduct,
   saveCloudBanner,
-  deleteCloudBanner
+  deleteCloudBanner,
+  saveCloudNotification
 } from '../firebase.ts';
 
 export const AdminDashboardPage: React.FC = () => {
@@ -738,6 +739,28 @@ export const AdminDashboardPage: React.FC = () => {
     // Sync to Cloud Firestore across all devices (works on Netlify too)
     saveCloudProduct(cleanProduct, adminProducts).catch(() => {});
 
+    // Publish New Arrival notification when a brand-new scooty is added
+    if (!editingProduct) {
+      const shortImg =
+        cleanProduct.image && /^https?:\/\//i.test(cleanProduct.image) && cleanProduct.image.length <= 1500
+          ? cleanProduct.image
+          : undefined;
+      saveCloudNotification({
+        id: `notif_product_${targetId}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        title: `New Scooty Arrival: ${cleanProduct.name}`,
+        body: `Just arrived in ${cleanProduct.category}! Price: PKR ${cleanProduct.price.toLocaleString()} (${cleanProduct.specs.rangeMileage}).`,
+        category: 'new_arrival',
+        url: '/scooties',
+        ...(shortImg ? { imageUrl: shortImg } : {}),
+        targetType: 'all',
+        sentBy: 'System',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: new Date().toISOString()
+      }).catch(() => {});
+    }
+
     try {
       const url = editingProduct
         ? `/api/admin/products/${editingProduct.id}`
@@ -845,6 +868,31 @@ export const AdminDashboardPage: React.FC = () => {
       console.warn('Express order status sync warning:', err);
     }
 
+    // 3b. Always publish Cloud order status notification so mobile Bell Icon & Notification Bar update even on Netlify
+    if (targetOrder && targetOrder.status !== status) {
+      const statusMsgMap: Record<string, string> = {
+        Confirmed: `Your VoltGlide order #${orderId} is CONFIRMED! Our dispatch team is preparing your scooty.`,
+        Shipped: `Great news! Your order #${orderId} has been SHIPPED and is on the way to ${targetOrder.city}.`,
+        Delivered: `Your VoltGlide order #${orderId} has been DELIVERED. Enjoy your ride!`,
+        Cancelled: `Order #${orderId} status updated to Cancelled. Contact our WhatsApp helpline if you need help.`
+      };
+      saveCloudNotification({
+        id: `notif_order_${orderId}_${status}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        title: `Order #${orderId} · ${status}`,
+        body: statusMsgMap[status] || `Your order #${orderId} status is now ${status}.`,
+        category: 'order',
+        url: '/customer-account',
+        targetType: 'customer',
+        ...(targetOrder.customerId ? { targetCustomerId: targetOrder.customerId } : {}),
+        ...(targetOrder.customerPhone ? { targetPhone: targetOrder.customerPhone } : {}),
+        sentBy: 'System',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: new Date().toISOString()
+      }).catch(() => {});
+    }
+
     // 4. Refresh customer orders state so Customer Account reflects the change immediately
     await refreshCustomerOrders().catch(() => {});
     setUpdatingOrderId(null);
@@ -937,6 +985,23 @@ export const AdminDashboardPage: React.FC = () => {
 
     // Sync banner to Cloud Firestore across all devices
     saveCloudBanner(cleanBanner, adminBanners).catch(() => {});
+
+    // Publish Special Offer notification when a new active promotion banner is added
+    if (!editingBanner && cleanBanner.active) {
+      saveCloudNotification({
+        id: `notif_banner_${targetBannerId}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        title: cleanBanner.title || 'New VoltGlide Offer Live!',
+        body: cleanBanner.subtitle || 'Check out the latest scooty offer & installment deal on VoltGlide.',
+        category: 'offer',
+        url: cleanBanner.ctaLink && cleanBanner.ctaLink.startsWith('/') ? cleanBanner.ctaLink : '/scooties',
+        targetType: 'all',
+        sentBy: 'System',
+        sentCount: 1,
+        failedCount: 0,
+        expiredCount: 0,
+        createdAt: new Date().toISOString()
+      }).catch(() => {});
+    }
 
     try {
       const url = editingBanner

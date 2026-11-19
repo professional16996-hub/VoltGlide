@@ -1096,6 +1096,19 @@ app.post('/api/orders', (req, res) => {
   }
   saveDatabase(db);
 
+  // Trigger background push notification for new order confirmation
+  sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+    id: `notif_order_${newOrder.id}_placed`,
+    title: `Order Confirmed · #${newOrder.id}`,
+    body: `Thank you ${newOrder.customerName}! Your scooty order (PKR ${newOrder.totalAmount.toLocaleString()} · ${newOrder.paymentMethod}) has been booked.`,
+    category: 'order',
+    url: '/customer-account',
+    targetType: 'customer',
+    targetCustomerId: newOrder.customerId,
+    targetPhone: newOrder.customerPhone,
+    sentBy: 'System'
+  }).catch((err) => console.warn('[PushServer] New order push warning:', err));
+
   res.json({ success: true, message: 'Order booked successfully!', data: newOrder });
 });
 
@@ -1624,6 +1637,17 @@ app.post('/api/admin/products', authenticateAdmin, (req, res) => {
 
   db.products.unshift(newProduct);
   saveDatabase(db);
+
+  sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+    id: `notif_product_${newProduct.id}`,
+    title: `New Scooty Arrival: ${newProduct.name}`,
+    body: `Just arrived in ${newProduct.category}! Price: PKR ${newProduct.price.toLocaleString()} (${newProduct.specs.rangeMileage}).`,
+    category: 'new_arrival',
+    url: '/scooties',
+    targetType: 'all',
+    sentBy: 'System'
+  }).catch((err) => console.warn('[PushServer] New product push warning:', err));
+
   res.json({ success: true, message: 'Product added successfully!', data: newProduct });
 });
 
@@ -1704,6 +1728,7 @@ app.put('/api/admin/orders/:id', authenticateAdmin, (req, res) => {
     };
     const msg = statusLabels[order.status] || `Your order #${order.id} status is now ${order.status}.`;
     sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+      id: `notif_order_${order.id}_${order.status}`,
       title: `Order #${order.id} · ${order.status}`,
       body: msg,
       category: 'order',
@@ -1747,6 +1772,19 @@ app.post('/api/admin/banners', authenticateAdmin, (req, res) => {
   };
   db.banners.unshift(newBanner);
   saveDatabase(db);
+
+  if (newBanner.active) {
+    sendBackgroundPushNotification(loadDatabase, saveDatabase, {
+      id: `notif_banner_${newBanner.id}`,
+      title: newBanner.title,
+      body: newBanner.subtitle,
+      category: 'offer',
+      url: newBanner.ctaLink && newBanner.ctaLink.startsWith('/') ? newBanner.ctaLink : '/scooties',
+      targetType: 'all',
+      sentBy: 'System'
+    }).catch((err) => console.warn('[PushServer] New banner push warning:', err));
+  }
+
   res.json({ success: true, message: 'Banner created!', data: newBanner });
 });
 

@@ -626,6 +626,38 @@ export async function getFcmRegistrationToken(
   }
 }
 
+export async function listenForegroundFcmMessages(
+  onPayload: (payload: {
+    notificationId: string;
+    title: string;
+    body: string;
+    url?: string;
+    imageUrl?: string;
+    category?: string;
+  }) => void
+): Promise<() => void> {
+  try {
+    const messagingMod = await import('firebase/messaging');
+    const supported = await messagingMod.isSupported();
+    if (!supported) return () => {};
+    const messaging = messagingMod.getMessaging(app);
+    return messagingMod.onMessage(messaging, (raw) => {
+      const notif = raw.notification || {};
+      const data = raw.data || {};
+      onPayload({
+        notificationId: String(data.notificationId || `fcm_${Date.now()}`),
+        title: String(notif.title || data.title || 'VoltGlide Scooty Hub'),
+        body: String(notif.body || data.body || 'New update from VoltGlide Motors Pakistan.'),
+        url: typeof data.url === 'string' ? data.url : '/',
+        imageUrl: notif.image || (typeof data.imageUrl === 'string' ? data.imageUrl : undefined),
+        category: typeof data.category === 'string' ? data.category : 'general'
+      });
+    });
+  } catch {
+    return () => {};
+  }
+}
+
 function sanitizePushSubscriptionForCloud(sub: PushSubscriptionRecord) {
   const safeId = String(sub.id || `sub_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
   const validPlatforms = ['Android', 'iOS', 'Desktop', 'Mobile'] as const;

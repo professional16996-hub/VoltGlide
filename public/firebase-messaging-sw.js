@@ -12,6 +12,33 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+function resolveAssetUrl(inputUrl) {
+  if (!inputUrl || typeof inputUrl !== 'string') {
+    return self.location.origin + DEFAULT_ICON;
+  }
+  if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://')) {
+    return inputUrl;
+  }
+  return self.location.origin + (inputUrl.startsWith('/') ? inputUrl : '/' + inputUrl);
+}
+
+function resolveRouteUrl(targetUrl) {
+  if (!targetUrl || typeof targetUrl !== 'string') {
+    return self.location.origin + '/';
+  }
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+    return targetUrl;
+  }
+  const clean = targetUrl.replace(/^\/+/, '');
+  if (!clean || clean === 'home') {
+    return self.location.origin + '/';
+  }
+  if (clean.startsWith('#/')) {
+    return self.location.origin + '/' + clean;
+  }
+  return self.location.origin + '/#/' + clean;
+}
+
 function parsePushPayload(event) {
   let raw = {};
   try {
@@ -37,7 +64,7 @@ function parsePushPayload(event) {
     data.body ||
     'New update from VoltGlide Motors Pakistan.';
   const image = raw.imageUrl || raw.image || notif.image || data.imageUrl || undefined;
-  const icon = raw.icon || notif.icon || DEFAULT_ICON;
+  const icon = resolveAssetUrl(raw.icon || notif.icon || DEFAULT_ICON);
   const url = raw.url || data.url || (raw.fcmOptions && raw.fcmOptions.link) || '/';
   const notificationId = raw.notificationId || data.notificationId || 'vg-' + Date.now();
   const category = raw.category || data.category || 'general';
@@ -61,12 +88,14 @@ self.addEventListener('push', (event) => {
   const notificationOptions = {
     body: payload.body,
     icon: payload.icon,
-    badge: DEFAULT_ICON,
+    badge: resolveAssetUrl(DEFAULT_ICON),
     tag: payload.notificationId,
     renotify: true,
+    silent: false,
     requireInteraction: false,
     vibrate: [200, 100, 200],
     timestamp: Date.now(),
+    actions: [{ action: 'open', title: 'View' }],
     data: {
       url: payload.url,
       notificationId: payload.notificationId,
@@ -102,8 +131,9 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const rawUrl = (event.notification.data && event.notification.data.url) || '/';
   const notificationId = event.notification.data && event.notification.data.notificationId;
+  const resolvedUrl = resolveRouteUrl(rawUrl);
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -113,7 +143,7 @@ self.addEventListener('notificationclick', (event) => {
           try {
             client.postMessage({
               type: 'PUSH_NOTIFICATION_CLICKED',
-              url: targetUrl,
+              url: rawUrl,
               notificationId
             });
           } catch {}
@@ -121,9 +151,6 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       if (self.clients.openWindow) {
-        const resolvedUrl = targetUrl.startsWith('http')
-          ? targetUrl
-          : self.location.origin + (targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl);
         return self.clients.openWindow(resolvedUrl);
       }
     })

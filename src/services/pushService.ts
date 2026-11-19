@@ -19,6 +19,7 @@ const DEVICE_ID_KEY = 'voltglide_push_device_id';
 const SUBSCRIBED_REMEMBER_KEY = 'voltglide_push_remembered';
 const ENDPOINT_CACHE_KEY = 'voltglide_push_endpoint';
 const SUBSCRIPTION_ID_KEY = 'voltglide_push_sub_id';
+const SHOWN_SYSTEM_NOTIFS_KEY = 'voltglide_shown_system_notif_ids';
 const SW_URL = '/firebase-messaging-sw.js';
 const IDB_NAME = 'voltglide_push_store';
 const IDB_STORE = 'meta';
@@ -260,6 +261,114 @@ export async function registerPushServiceWorker(): Promise<ServiceWorkerRegistra
     } catch {
       return null;
     }
+  }
+}
+
+export function getShownSystemNotificationIds(): string[] {
+  try {
+    const raw = safeGetStorage(SHOWN_SYSTEM_NOTIFS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markSystemNotificationShown(id: string): void {
+  if (!id) return;
+  try {
+    const current = getShownSystemNotificationIds();
+    if (!current.includes(id)) {
+      const next = [...current, id].slice(-250);
+      safeSetStorage(SHOWN_SYSTEM_NOTIFS_KEY, JSON.stringify(next));
+    }
+  } catch {}
+}
+
+export async function showSystemTrayNotification(options: {
+  id: string;
+  title: string;
+  body: string;
+  url?: string;
+  imageUrl?: string;
+  category?: string;
+  force?: boolean;
+}): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+
+    const tagId = String(options.id || `vg_${Date.now()}`);
+    if (!options.force && getShownSystemNotificationIds().includes(tagId)) {
+      return false;
+    }
+
+    const iconUrl = `${window.location.origin}/images/electric_scooty_blue_1793645309587.jpg`;
+    let reg: ServiceWorkerRegistration | null = null;
+
+    if ('serviceWorker' in navigator) {
+      reg =
+        (await navigator.serviceWorker.getRegistration(SW_URL).catch(() => null)) ||
+        (await navigator.serviceWorker.getRegistration('/').catch(() => null)) ||
+        (await registerPushServiceWorker());
+    }
+
+    if (reg && typeof reg.showNotification === 'function') {
+      if (!options.force && typeof reg.getNotifications === 'function') {
+        const activeWithTag = await reg.getNotifications({ tag: tagId }).catch(() => []);
+        if (activeWithTag.length > 0) {
+          markSystemNotificationShown(tagId);
+          return false;
+        }
+      }
+
+      const notifOptions: NotificationOptions & {
+        vibrate?: number[];
+        renotify?: boolean;
+        image?: string;
+        timestamp?: number;
+        actions?: { action: string; title: string }[];
+      } = {
+        body: options.body,
+        icon: iconUrl,
+        badge: iconUrl,
+        tag: tagId,
+        renotify: true,
+        silent: false,
+        vibrate: [200, 100, 200],
+        timestamp: Date.now(),
+        actions: [{ action: 'open', title: 'Open' }],
+        data: {
+          url: options.url || '/',
+          notificationId: tagId,
+          category: options.category || 'general'
+        }
+      };
+
+      if (options.imageUrl && options.imageUrl.startsWith('http')) {
+        notifOptions.image = options.imageUrl;
+      }
+
+      await reg.showNotification(options.title, notifOptions);
+      markSystemNotificationShown(tagId);
+      return true;
+    }
+
+    // Desktop fallback when SW registration is unavailable (wrapped so Android Chrome never throws)
+    try {
+      new Notification(options.title, {
+        body: options.body,
+        icon: iconUrl,
+        tag: tagId
+      });
+      markSystemNotificationShown(tagId);
+      return true;
+    } catch {
+      return false;
+    }
+  } catch (err) {
+    console.warn('System notification bar warning:', err);
+    return false;
   }
 }
 
@@ -507,9 +616,19 @@ export async function subscribeToPermanentPush(
   const fcmToken = await getFcmRegistrationToken(vapidPublicKey, registration).catch(() => undefined);
   const saved = await persistSubscriptionEverywhere(browserSub, deviceId, fcmToken, customer);
 
+  // Immediately show a welcome notification in the mobile/desktop OS notification bar
+  await showSystemTrayNotification({
+    id: `notif_welcome_${Date.now()}`,
+    title: 'VoltGlide Notifications Active!',
+    body: 'Order updates, flash deals & new scooty alerts will now appear in your phone notification bar.',
+    url: '/scooties',
+    category: 'announcement',
+    force: true
+  }).catch(() => false);
+
   return {
     success: true,
-    message: 'Permanent background notifications enabled! Alerts will arrive even when website is closed or phone restarts.',
+    message: 'Permanent background notifications enabled! Alerts will arrive in your phone notification bar.',
     state: {
       supported: true,
       permission: 'granted',
